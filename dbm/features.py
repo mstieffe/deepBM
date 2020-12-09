@@ -65,6 +65,7 @@ class Feature():
             self.angle_ndx_gibbs = self.get_angle_ndx_gibbs_hf()
             self.dih_ndx_gibbs = self.get_dih_ndx_gibbs_hf()
             self.lj_ndx_gibbs = self.get_lj_ndx_gibbs_hf()
+        #self.energy_ndx_gibbs = (self.bond_ndx_gibbs, self.angle_ndx_gibbs, self.dih_ndx_gibbs, self.lj_ndx_gibbs)
 
 
         #energy indices
@@ -76,6 +77,7 @@ class Feature():
         #self.dih_ndx_gibbs = self.get_dih_ndx_gibbs()
         self.lj_ndx_init = self.get_lj_ndx_init()
         #self.lj_ndx_gibbs = self.get_lj_ndx_gibbs()
+        #self.energy_ndx_init = (self.bond_ndx_init, self.angle_ndx_init, self.dih_ndx_init, self.lj_ndx_init)
 
         #repl vector (used for recurrent training to insert generated atom position in env_atoms for next atom)
         self.repl = np.ones(len(self.env_atoms), dtype=bool)
@@ -481,7 +483,7 @@ class Feature():
         energy = self.ff.lj_energy(dis, np.array(sigma), np.array(epsilon), shift=shift)
         return energy
 
-    def lj_energy_intra_inter(self, shift=False, ref=False):
+    def lj_energy_intra(self, shift=False, ref=False):
         pos1, pos2, sigma, epsilon = [], [], [], []
         for lj in self.ljs_intra:
             if ref:
@@ -499,6 +501,9 @@ class Feature():
         else:
             energy_intra = 0.0
 
+        return energy_intra
+
+    def lj_energy_inter(self, shift=False, ref=False):
         pos1, pos2, sigma, epsilon = [], [], [], []
         for lj in self.ljs_inter:
             if ref:
@@ -515,7 +520,7 @@ class Feature():
             energy_inter = self.ff.lj_energy(dis, np.array(sigma), np.array(epsilon), shift=shift)
         else:
             energy_inter = 0.0
-        return energy_intra, energy_inter
+        return energy_inter
 
     def energy(self, ref=False, shift=False):
         #start = timer()

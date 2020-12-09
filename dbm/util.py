@@ -6,31 +6,6 @@ import torch
 from torch.nn.modules.module import _addindent
 import os
 
-class Stats(object):
-    def __init__(self, group, items):
-        self._stats = []
-        self._group = group
-        self._items = items
-
-    def add(self, tup):
-        if len(tup) != len(self._items):
-            raise ValueError("Incompatible stats")
-        self._stats.append(torch.stack([x.detach() for x in tup]))
-
-    def samples(self):
-        return np.array(self._stats)
-
-    def write(self, writer, step, clear: bool = True):
-        stats = torch.stack(self._stats)
-        for ix, item in enumerate(self._items):
-            name = self._group + "/" + item
-            value = torch.mean(stats[..., ix]).cpu().numpy()
-            writer.add_scalar(name, value, global_step=step)
-        if clear:
-            self.clear()
-
-    def clear(self):
-        self._stats.clear()
 
 
 def compute_same_padding(kernel_size, stride, dilation):
