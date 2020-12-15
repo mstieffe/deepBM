@@ -7,6 +7,21 @@ from torch.nn.modules.module import _addindent
 import os
 
 
+def read_between(start, end, file):
+    # generator to yield line between start and end
+    file = open(file)
+    rec = False
+    for line in file:
+        if line.startswith(";") or line.startswith("\n"):
+            continue
+        if not rec:
+            if line.startswith(start):
+                rec = True
+        elif line.startswith(end):
+            rec = False
+        else:
+            yield line
+    file.close()
 
 def compute_same_padding(kernel_size, stride, dilation):
     if kernel_size % 2 == 0:
