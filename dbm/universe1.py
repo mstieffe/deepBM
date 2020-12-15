@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from dbm.ff import *
 from dbm.features import *
 from dbm.mol import *
+from dbm.box import *
 #from utils import *
 from copy import deepcopy
 #import sys
@@ -20,72 +21,58 @@ np.set_printoptions(threshold=np.inf)
 
 class Universe():
 
-    def __init__(self, ff, folder, cg_file, aa_file=None, cutoff=0.62, kick=0.05, align=False, aug=False, order="dfs", heavy_first=False, cg_dropout=0.0):
+    def __init__(self, cfg, path_dict, ff):
 
         start = timer()
 
-
-        self.name = os.path.splitext(os.path.basename(cg_file))[0]
-
-        self.align = align
-        self.aug = aug
-        self.order = order
-        self.heavy_first = heavy_first
-        #self.fix_seq = fix_seq
-
-        self.cutoff_sq = cutoff*cutoff
-        self.kick = kick
-        self.cg_dropout = cg_dropout
+        self.cfg = cfg
+        self.aug = int(cfg.getboolean('universe', 'aug'))
+        self.align = int(cfg.getboolean('universe', 'align'))
+        self.order = cfg.get('universe', 'order')
+        self.cutoff = cfg.getfloat('universe', 'cutoff')
+        self.kick = cfg.getfloat('universe', 'kick')
 
         #load forcefield
         self.ff = ff
 
-        #self.cg_file = cg_file
-        #self.aa_top_file = aa_top_file
-        # use MD_traj to parse gro file
-        self.folder = folder
-        self.cg_file = cg_file
-        self.aa_file = aa_file
-        cg = md.load(self.cg_file)
-        if aa_file:
-            aa = md.load(self.aa_file)
+        cg = md.load(str(path_dict['cg_path']))
+        if path_dict['aa_path']:
+            aa = md.load(str(path_dict['aa_path']))
         # number of molecules in file
         self.n_mol = cg.topology.n_residues
         # matrix containing box dimensions
-        self.box = Box(self.cg_file)
+        self.box = Box(path_dict['cg_path'])
 
         # Go through all molecules in cg file and initialize instances of mols and beads
         #print("Setting up topology and loc environments..", end='')
-        self.atoms = []
-        self.beads = []
-        self.mols = []
+        self.atoms, self.beads, self.mols = [], [], []
         for res in cg.topology.residues:
             self.mols.append(Mol(res.name))
 
-            aa_top_file = os.path.join(self.folder +"/"+ res.name +"_aa.itp")
-            cg_top_file = os.path.join(self.folder +"/"+ res.name +"_cg.itp")
-            map_file = os.path.join(self.folder +"/"+ res.name +".map")
-            env_file = os.path.join(self.folder +"/"+ res.name +".env")
+            aa_top_file = path_dict['dir'] / (res.name + "_aa.itp")
+            cg_top_file = path_dict['dir'] / (res.name + "_cg.itp")
+            map_file = path_dict['dir'] / (res.name + ".map")
+            env_file = path_dict['dir'] / (res.name + ".env")
 
             beads = []
             for bead in res.atoms:
-                #type_index = [t.name for t in self.ff.bead_types].index(bead.element.symbol)
-                beads.append(Bead(self.mols[-1], self.box.pbc_in_box(cg.xyz[0,bead.index]), self.ff.bead_types[bead.element.symbol]))
+                beads.append(Bead(self.mols[-1],
+                                  self.box.move_inside(cg.xyz[0, bead.index]),
+                                  self.ff.bead_types[bead.element.symbol]))
                 self.mols[-1].add_bead(beads[-1])
 
             atoms = []
             for line in self.read_between("[map]", "\n", map_file):
                 type_name = line.split()[1]
-                #type_index = [t.name for t in self.ff.atom_types].index(type_name)
-                #print(int(line.split()[2])-1)
                 bead = beads[int(line.split()[2])-1]
-                atoms.append(Atom(bead, self.mols[-1], bead.center, self.ff.atom_types[type_name]))
-                #if np.any(self.box.pbc(aa.xyz[0, atoms[-1].index] - atoms[-1].center) != self.box.pbc3(aa.xyz[0, atoms[-1].index] - atoms[-1].center)):
-                #    print(self.box.pbc(aa.xyz[0, atoms[-1].index] - atoms[-1].center))
-                #    print(self.box.pbc3(aa.xyz[0, atoms[-1].index] - atoms[-1].center))
+                atoms.append(Atom(bead,
+                                  self.mols[-1],
+                                  bead.center,
+                                  self.ff.atom_types[type_name]))
 
-                if aa_file:
-                    atoms[-1].ref_pos = self.box.pbc_diff_vec(aa.xyz[0, atoms[-1].index] - atoms[-1].center)
+
+                if path_dict['aa_path']:
+                    atoms[-1].ref_pos = self.box.diff_vec(aa.xyz[0, atoms[-1].index] - atoms[-1].center)
                 bead.add_atom(atoms[-1])
                 self.mols[-1].add_atom(atoms[-1])
             Atom.mol_index = 0
@@ -1362,255 +1349,4 @@ class Universe():
                 self.box.dim[0][2],
                 self.box.dim[1][2]))
 
-
-class Box():
-
-    def __init__(self, file):
-
-        self.dim = self.get_box_dim(file)
-        self.dim_inv= np.linalg.inv(self.dim)
-        self.v1 = self.dim[:, 0]
-        self.v2 = self.dim[:, 1]
-        self.v3 = self.dim[:, 2]
-        self.volume = self.get_vol()
-        self.center = 0.5*self.v1 + 0.5*self.v2 + 0.5*self.v3
-
-    def get_box_dim(self, file):
-        # reads the box dimensions from the last line in the gro file
-        f_read = open(file, "r")
-        bd = np.array(f_read.readlines()[-1].split(), np.float32)
-        f_read.close()
-        bd = list(bd)
-        for n in range(len(bd), 10):
-            bd.append(0.0)
-        dim = np.array([[bd[0], bd[5], bd[7]],
-                                 [bd[3], bd[1], bd[8]],
-                                 [bd[4], bd[6], bd[2]]])
-        return dim
-
-    def pbc_old(self, pos):
-        if pos[0] > self.v1[0] / 2:
-            pos -= self.v1
-        elif pos[0] < -self.v1[0] / 2:
-            pos += self.v1
-        if pos[1] > self.v2[1] / 2:
-            pos -= self.v2
-        elif pos[1] < -self.v2[1] / 2:
-            pos += self.v2
-        if pos[2] > self.v3[2] / 2:
-            pos -= self.v3
-        elif pos[2] < -self.v3[2] / 2:
-            pos += self.v3
-        return pos
-
-    def pbc_in_box(self, pos):
-        f = np.dot(self.dim_inv, pos)
-        g = f - np.floor(f)
-        new_pos = np.dot(self.dim, g)
-        return new_pos
-
-    def pbc_diff_vec(self, diff_vec):
-        diff_vec = diff_vec + self.center
-        diff_vec = self.pbc_in_box(diff_vec)
-        diff_vec = diff_vec - self.center
-        return diff_vec
-
-    def pbc_diff_vec_batch(self, diff_vec):
-        diff_vec = np.swapaxes(diff_vec, 0, 1)
-        diff_vec = diff_vec + self.center[:, np.newaxis]
-        diff_vec = self.pbc_in_box(diff_vec)
-        diff_vec = diff_vec - self.center[:, np.newaxis]
-        diff_vec = np.swapaxes(diff_vec, 0, 1)
-        return diff_vec
-
-    def get_vol(self):
-        norm1 = np.sqrt(np.sum(np.square(self.v1)))
-        norm2 = np.sqrt(np.sum(np.square(self.v2)))
-        norm3 = np.sqrt(np.sum(np.square(self.v3)))
-
-        cos1 = np.sum(self.v2 * self.v3) / (norm2 * norm3)
-        cos2 = np.sum(self.v1 * self.v3) / (norm1 * norm3)
-        cos3 = np.sum(self.v1 * self.v2) / (norm1 * norm2)
-        v = norm1*norm2*norm3 * np.sqrt(1-np.square(cos1)-np.square(cos2)-np.square(cos3)+2*np.sqrt(cos1*cos2*cos3))
-        return v
-
-
-
-
-#u = Universes(["./data/sPS_t568_small"], "./forcefield/ff.txt", align=True, aug=False, fix_seq=True)
-"""
-iter = u.traversal_seq(mode ="init")
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat, *_ = next(iter)
-u.collection[0].plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat, only_first=True)
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat, *_ = next(iter)
-u.collection[0].plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat, only_first=True)
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat, *_ = next(iter)
-u.collection[0].plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat, only_first=True)
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat, *_ = next(iter)
-u.collection[0].plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat, only_first=True)
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat, *_ = next(iter)
-u.collection[0].plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat, only_first=True)
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat, *_ = next(iter)
-u.collection[0].plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat, only_first=True)
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat, *_ = next(iter)
-u.collection[0].plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat, only_first=True)
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat, *_ = next(iter)
-u.collection[0].plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat, only_first=True)
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat, *_ = next(iter)
-u.collection[0].plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat, only_first=True)
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat, *_ = next(iter)
-u.collection[0].plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat, only_first=True)
-"""
-"""
-s = timer()
-u_bm = deepcopy(u)
-print("copy", timer()-s)
-s = timer()
-iter = u_bm.traversal(train=False, mode="init", batch=True)
-print("iter", timer()-s)
-s = timer()
-count = 0
-for batch in iter:
-    count += 1
-    if count == 100:
-        break
-print(count, timer()-s)
-
-s = timer()
-iter2 = u_bm.traversal(train=False, mode="init", batch=True)
-print("iter", timer()-s)
-s = timer()
-count = 0
-for batch in iter2:
-    count += 1
-    if count == 100:
-        break
-print(count, timer()-s)
-"""
-
-"""
-
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat = next(iter)
-
-print(target_pos)
-print(np.array(target_pos).shape)
-print(np.array(target_type).shape)
-print(np.array(aa_feat).shape)
-print(np.array(repl).shape)
-print(np.array(mask).shape)
-print(np.array(aa_pos).shape)
-print(np.array(cg_pos).shape)
-print(np.array(cg_feat).shape)
-
-"""
-
-#u.plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat)
-
-"""
-start = timer()
-iter = u.traversal_seq_combined()
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat = next(iter)
-#u.plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat)
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat = next(iter)
-
-#u.plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat)
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat = next(iter)
-
-#u.plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat)
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat = next(iter)
-
-#u.plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat)
-target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat = next(iter)
-#u.plot_envs(target_pos, aa_feat, repl, aa_pos, cg_pos, cg_feat)
-end=timer()
-print("this took ", end-start)
-"""
-"""
-for target_pos, target_type in t:
-    print(target_pos.shape, target_type.shape)
-for atom_pos, atom_featvec, bead_pos, bead_featvec, repl in e:
-    print(atom_pos.shape, atom_featvec.shape, bead_pos.shape, bead_featvec.shape, repl.shape)
-for mask in m:
-    print(mask)
-print("------")
-t, e, m = next(iter)
-for target_pos, target_type in t:
-    print(target_pos.shape, target_type.shape)
-for atom_pos, atom_featvec, bead_pos, bead_featvec, repl in e:
-    print(atom_pos.shape, atom_featvec.shape, bead_pos.shape, bead_featvec.shape, repl.shape)
-for mask in m:
-    print(mask)
-print("------")
-t, e, m = next(iter)
-for target_pos, target_type in t:
-    print(target_pos.shape, target_type.shape)
-for atom_pos, atom_featvec, bead_pos, bead_featvec, repl in e:
-    print(atom_pos.shape, atom_featvec.shape, bead_pos.shape, bead_featvec.shape, repl.shape)
-for mask in m:
-    print(mask)
-print("------")
-t, e, m = next(iter)
-for target_pos, target_type in t:
-    print(target_pos.shape, target_type.shape)
-for atom_pos, atom_featvec, bead_pos, bead_featvec, repl in e:
-    print(atom_pos.shape, atom_featvec.shape, bead_pos.shape, bead_featvec.shape, repl.shape)
-for mask in m:
-    print(mask)
-print("------")
-t, e, m = next(iter)
-for target_pos, target_type in t:
-    print(target_pos.shape, target_type.shape)
-for atom_pos, atom_featvec, bead_pos, bead_featvec, repl in e:
-    print(atom_pos.shape, atom_featvec.shape, bead_pos.shape, bead_featvec.shape, repl.shape)
-for mask in m:
-    print(mask)
-print("------")
-
-#seq = u.cg_seq()
-#print([[a.index for a in b.seq] for b in list(seq)])
-#u.write_gro_file("test.gro")
-"""
-"""
-iter = u.traversal_train()
-a,b,c,d,e,f = next(iter)
-u.plot_env(a[0], np.concatenate((np.array(c), np.array(e))),np.concatenate((d,f)))
-a,b,c,d,e,f = next(iter)
-u.plot_env(a[0], np.concatenate((np.array(c), np.array(e))),np.concatenate((d,f)))
-a,b,c,d,e,f = next(iter)
-u.plot_env(a[0], np.concatenate((np.array(c), np.array(e))),np.concatenate((d,f)))
-a,b,c,d,e,f = next(iter)
-u.plot_env(a[0], np.concatenate((np.array(c), np.array(e))),np.concatenate((d,f)))
-a,b,c,d,e,f = next(iter)
-u.plot_env(a[0], np.concatenate((np.array(c), np.array(e))),np.concatenate((d,f)))
-a,b,c,d,e,f = next(iter)
-u.plot_env(a[0], np.concatenate((np.array(c), np.array(e))),np.concatenate((d,f)))
-a,b,c,d,e,f = next(iter)
-u.plot_env(a[0], np.concatenate((np.array(c), np.array(e))),np.concatenate((d,f)))
-a,b,c,d,e,f = next(iter)
-u.plot_env(a[0], np.concatenate((np.array(c), np.array(e))),np.concatenate((d,f)))
-a,b,c,d,e,f = next(iter)
-a,b,c,d,e,f = next(iter)
-a,b,c,d,e,f = next(iter)
-a,b,c,d,e,f = next(iter)
-a,b,c,d,e,f = next(iter)
-a,b,c,d,e,f = next(iter)
-"""
-"""
-print(a)
-print(c.shape)
-plot_grid(np.sum(voxelize_gauss(c), axis=-1, keepdims=True))
-
-print(e)
-print(np.array(e).shape)
-print(f.shape)
-u.plot_env(a[0], np.concatenate((np.array(c), np.array(e))),np.concatenate((d,f)))
-
-"""
-"""
-for n in range(0,1000):
-    e = next(iter)
-    #a1, a2 = e
-    #print(a1.index, a1.type.name, a2.index, a2.type.name)
-    print(e.index, e.type.name)
-"""
 

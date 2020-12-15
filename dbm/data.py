@@ -71,10 +71,12 @@ class Data():
             aa_dir = path / "aa"
             for cg_path in cg_dir.glob('*.gro'):
                 aa_path = aa_dir / cg_path.name
+                path_dict = {'dir': path, 'cg_path': cg_path}
                 if aa_path.exists():
-                    u = Universe(self.cfg, cg_path, aa_path, self.ff)
+                    path_dict['aa_path'] = aa_path
                 else:
-                    u = Universe(self.cfg, cg_path, None, self.ff)
+                    path_dict['aa_path'] = None
+                u = Universe(self.cfg, path_dict, self.ff)
                 samples.append(u)
             if save:
                 with open(processed_path, 'wb') as output:
