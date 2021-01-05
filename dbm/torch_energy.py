@@ -3,7 +3,7 @@ from dbm.ff import *
 from scipy import constants
 import sys
 
-class Energy():
+class Energy_torch():
 
     def __init__(self, ff, device):
         self.ff = ff

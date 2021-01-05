@@ -182,7 +182,7 @@ class GAN_SEQ():
         )
         #forcefield for energy loss
 
-        self.energy = Energy(self.ff, self.device)
+        self.energy = Energy_torch(self.ff, self.device)
 
         #self.bond_params = torch.tensor(self.ff.bond_params(), dtype=torch.float32, device=device)
         #self.angle_params = torch.tensor(self.ff.angle_params(), dtype=torch.float32, device=device)
