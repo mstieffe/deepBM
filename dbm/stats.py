@@ -55,8 +55,8 @@ class Stats():
             plot_dict = {"title": "LJ", "xlabel": "E [kJ/mol]", "ylabel": "p"}
             lj_fig.add_plot(bm_lj, plot_dict, ref_lj)
             #LJ carbs only
-            bm_lj = self.lj_per_mol_dstr(samples, species=['C', 'C_AR'])
-            ref_lj = self.lj_per_mol_dstr(samples, species=['C', 'C_AR'], ref=True)
+            bm_lj = self.lj_per_mol_dstr(samples, key='heavy')
+            ref_lj = self.lj_per_mol_dstr(samples,key='heavy', ref=True)
             plot_dict = {"title": "LJ (carbs)", "xlabel": "E [kJ/mol]", "ylabel": "p"}
             lj_fig.add_plot(bm_lj, plot_dict, ref_lj)
             lj_fig.save()
@@ -202,22 +202,16 @@ class Stats():
 
         return dstr
 
-    def lj_per_mol_dstr(self, samples, species=None, n_bins=80, low=-600, high=400.0, ref=False):
+    def lj_per_mol_dstr(self, samples, key='all', n_bins=80, low=-600, high=400.0, ref=False):
         # computes the dstr of molecule-wise lj energies over all samples stored in data
 
         energies = []
         for sample in samples:
             for mol in sample.mols:
-                e_intra , e_inter = 0.0, 0.0
-                if species:
-                    atoms = [a for a in mol.atoms if a.type.name in species]
-                else:
-                    atoms = mol.atoms
-
-                for atom in atoms:
-                    e_intra += sample.features[atom].lj_energy_intra(ref=ref)/2.0
-                    e_inter += sample.features[atom].lj_energy_inter(ref=ref)
-                energies.append(e_intra+e_inter)
+                ljs = [sample.tops[a].ljs[key] for a in mol.atoms]
+                ljs = list(set(itertools.chain.from_iterable(ljs)))
+                energy = sample.energy.lj_pot(ljs)
+                energies.append(energy)
 
         dstr = self.make_histo(np.array(energies), n_bins=n_bins, low=low, high=high)
 
@@ -297,3 +291,28 @@ class Stats():
         p, q = p / p.sum(), q / q.sum()
         m = 1. / 2 * (p + q)
         return entropy(p, m, base=base) / 2. + entropy(q, m, base=base) / 2.
+
+    def bond_energy(self, samples, ref=False):
+        energies = []
+        for sample in samples:
+            energies.append(sample.energy.bond_pot(ref=ref))
+        return energies
+
+    def angle_energy(self, samples, ref=False):
+        energies = []
+        for sample in samples:
+            energies.append(sample.energy.angle_pot(ref=ref))
+        return energies
+
+    def dih_energy(self, samples, ref=False):
+        energies = []
+        for sample in samples:
+            energies.append(sample.energy.dih_pot(ref=ref))
+        return energies
+
+
+    def lj_energy(self, samples, ref=False, shift=False, cutoff=1.0):
+        energies = []
+        for sample in samples:
+            energies.append(sample.energy.lj_pot(ref=ref, shift=shift, cutoff=cutoff))
+        return energies

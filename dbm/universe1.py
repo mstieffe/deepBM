@@ -12,6 +12,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from dbm.ff import *
 from dbm.features import *
+from dbm.loc_env import *
 from dbm.mol import *
 from dbm.box import *
 from dbm.util import read_between
@@ -26,25 +27,27 @@ class Universe():
 
         start = timer()
 
+        #parameters
         self.cfg = cfg
         self.aug = int(cfg.getboolean('universe', 'aug'))
         self.align = int(cfg.getboolean('universe', 'align'))
         self.order = cfg.get('universe', 'order')
-        self.cutoff = cfg.getfloat('universe', 'cutoff')
+        self.cutoff_sq = cfg.getfloat('universe', 'cutoff')**2
         self.kick = cfg.getfloat('universe', 'kick')
 
-        #load forcefield
+        #forcefield
         self.ff = ff
 
+        # use mdtraj to load xyz information
         cg = md.load(str(path_dict['cg_path']))
         if path_dict['aa_path']:
             aa = md.load(str(path_dict['aa_path']))
         # number of molecules in file
         self.n_mol = cg.topology.n_residues
-        # matrix containing box dimensions
+        # box dimensions with periodic boundaries
         self.box = Box(path_dict['cg_path'])
 
-        # Go through all molecules in cg file and initialize instances of mols and beads
+        # Go through all molecules in cg file and initialize instances of mols, beads and atoms
         self.atoms, self.beads, self.mols = [], [], []
         for res in cg.topology.residues:
             self.mols.append(Mol(res.name))
@@ -62,7 +65,7 @@ class Universe():
                 self.mols[-1].add_bead(beads[-1])
 
             atoms = []
-            for line in self.read_between("[map]", "\n", map_file):
+            for line in read_between("[map]", "\n", map_file):
                 type_name = line.split()[1]
                 bead = beads[int(line.split()[2])-1]
                 atoms.append(Atom(bead,
@@ -77,58 +80,22 @@ class Universe():
                 self.mols[-1].add_atom(atoms[-1])
             Atom.mol_index = 0
 
-            for line in self.read_between("[bonds]", "[angles]", aa_top_file):
-                index1 = int(line.split()[0])-1
-                index2 = int(line.split()[1])-1
-                bond = self.ff.get_bond([atoms[index1], atoms[index2]])
-                if bond:
-                    self.mols[-1].add_bond(bond)
-
-            for line in self.read_between("[angles]", "[dihedrals]", aa_top_file):
-                index1 = int(line.split()[0])-1
-                index2 = int(line.split()[1])-1
-                index3 = int(line.split()[2])-1
-                angle = self.ff.get_angle([atoms[index1], atoms[index2], atoms[index3]])
-                if angle:
-                    self.mols[-1].add_angle(angle)
-
-            for line in self.read_between("[dihedrals]", "[exclusions]", aa_top_file):
-                index1 = int(line.split()[0])-1
-                index2 = int(line.split()[1])-1
-                index3 = int(line.split()[2])-1
-                index4 = int(line.split()[3])-1
-                dih = self.ff.get_dih([atoms[index1], atoms[index2], atoms[index3], atoms[index4]])
-                if dih:
-                    self.mols[-1].add_dih(dih)
-
-            for line in self.read_between("[exclusions]", "\n", aa_top_file):
-                index1 = int(line.split()[0])-1
-                index2 = int(line.split()[1])-1
-                self.mols[-1].add_excl([atoms[index1], atoms[index2]])
-
-            for line in self.read_between("[bonds]", "[angles]", cg_top_file):
-                index1 = int(line.split()[0])-1
-                index2 = int(line.split()[1])-1
-                self.mols[-1].add_cg_edge([beads[index1], beads[index2]])
-
+            self.mols[-1].add_aa_top(aa_top_file, self.ff)
+            self.mols[-1].add_cg_top(cg_top_file)
 
             #add atoms and beads to universe
             self.beads += beads
             self.atoms += atoms
 
-            #make Graph for each molecule
-            self.mols[-1].make_aa_graph()
-            self.mols[-1].make_cg_graph()
-
             if self.align:
-                for line in self.read_between("[align]", "[mult]", env_file):
+                for line in read_between("[align]", "[mult]", env_file):
                     b_index, fp_index = line.split()
                     if int(b_index) > len(self.mols[-1].beads) or int(fp_index) > len(self.mols[-1].beads):
                         raise Exception('Indices in algn section do not match the molecular structure!')
                     self.mols[-1].beads[int(b_index) - 1].fp = self.mols[-1].beads[int(fp_index) - 1]
 
             if self.aug:
-                for line in self.read_between("[mult]", "\n", env_file):
+                for line in read_between("[mult]", "\n", env_file):
                     b_index, m = line.split()
                     if int(b_index) > len(self.mols[-1].beads) or int(m) < 0:
                         raise Exception('Invalid number of multiples!')
@@ -139,64 +106,31 @@ class Universe():
         Mol.index = 0
         self.n_atoms = len(self.atoms)
 
-        print("generated mols ", timer()-start)
         # generate local envs
-        self.features = {}
-        self.bead_seq = []
-        if self.heavy_first:
-            self.atom_seq_dict_heavy = {}
-            self.atom_seq_dict_hydrogens = {}
-            for mol in self.mols:
-                cg_seq, atom_seq_dict_heavy, atom_seq_dict_hydrogens, atom_predecessors_dict = mol.aa_seq_sep(
-                    order=self.order, train=False)
-                self.atom_seq_dict_heavy = {**self.atom_seq_dict_heavy, **atom_seq_dict_heavy}
-                self.atom_seq_dict_hydrogens = {**self.atom_seq_dict_hydrogens, **atom_seq_dict_hydrogens}
-                for bead, _ in cg_seq:
-                    self.bead_seq.append(bead)
-                    env_beads = self.get_loc_beads(bead)
-                    for atom in atom_seq_dict_heavy[bead]:
-                        predecessors = atom_predecessors_dict[atom]
-                        self.features[atom] = Feature(atom, predecessors, env_beads, self.ff, self.box, self.cg_dropout)
-                    for atom in atom_seq_dict_hydrogens[bead]:
-                        predecessors = atom_predecessors_dict[atom]
-                        self.features[atom] = Feature(atom, predecessors, env_beads, self.ff, self.box, self.cg_dropout)
-        else:
-            self.atom_seq_dict = {}
-            for mol in self.mols:
-                cg_seq, atom_seq_dict, atom_predecessors_dict = mol.aa_seq(order=self.order, train=False)
-                self.atom_seq_dict = {**self.atom_seq_dict, **atom_seq_dict}
-                for bead, _ in cg_seq:
-                    self.bead_seq.append(bead)
-                    env_beads = self.get_loc_beads(bead)
-                    for atom in atom_seq_dict[bead]:
-                        predecessors = atom_predecessors_dict[atom]
-                        #print(mol.dihs)
-                        #print(atom.type.name, atom.index)
-                        #print(bead.index)
-                        #print([b.index for b in env_beads])
-                        self.features[atom] = Feature(atom, predecessors, env_beads, self.ff, self.box, self.cg_dropout)
+        self.loc_envs, self.cg_features, self.aa_seq_heavy, self.aa_seq_hydrogens = {}, {}, {}, {}
+        self.tops, self.aa_features = {}, {}
+        for mol in self.mols:
+            cg_seq, dict_aa_seq_heavy, dict_aa_seq_hydrogens, dict_aa_predecessors = mol.aa_seq(order=self.order,
+                                                                                              train=False)
+            self.aa_seq_heavy = {**self.aa_seq_heavy, **dict_aa_seq_heavy}
+            self.aa_seq_hydrogens = {**self.aa_seq_hydrogens, **dict_aa_seq_hydrogens}
+            for bead, _ in cg_seq:
+                env_beads = self.get_loc_beads(bead)
+                self.loc_envs[bead] = Local_Env(bead, env_beads, self.box)
+                self.cg_features[bead] = CG_Feature(self.loc_envs[bead], self.ff)
+                for atom in dict_aa_seq_heavy[bead]:
+                    self.tops[atom] = Top(atom, self.loc_envs[bead], dict_aa_predecessors[atom], self.ff)
+                    self.aa_features[atom] = AA_Feature(self.loc_envs[bead], self.tops[atom])
+                for atom in dict_aa_seq_hydrogens[bead]:
+                    self.tops[atom] = Top(atom, self.loc_envs[bead], dict_aa_predecessors[atom], self.ff)
+                    self.aa_features[atom] = AA_Feature(self.loc_envs[bead], self.tops[atom])
 
-
-        print("generated loc envs ", timer()-start)
-
-
-        self.max_seq_len = 0
-        self.max_beads, self.max_atoms = 0, 0
-        self.max_bonds, self.max_angles, self.max_dihs, self.max_ljs = 0, 0, 0, 0
-        self.max_bonds_pb, self.max_angles_pb, self.max_dihs_pb, self.max_ljs_pb = 0, 0, 0, 0
-        self.update_max_values()
-
-        #print("max", self.max_atoms, self.max_beads, self.max_bonds, self.max_angles, self.max_dihs, self.max_ljs)
+        self.energy = Energy(self.tops, self.box)
 
         self.kick_atoms()
 
-        print("got max values ", timer()-start)
+        print("jasda")
 
-
-        #print(self.energy_terms(shift=True, ref=True))
-        #print("energy calc took ", timer()-start)
-        #print(self.energy(shift=True, ref=True))
-        #print("energy calc took ", timer()-start)
 
     def gen_bead_seq(self, train=False):
         bead_seq = []
@@ -206,73 +140,19 @@ class Universe():
             bead_seq += list(zip(*mol.cg_seq(order=self.order, train=train)))[0]
         return bead_seq
 
-    def update_max_values(self):
-
-        for bead in self.bead_seq:
-            if self.heavy_first:
-                if len(self.atom_seq_dict_heavy[bead]) > self.max_seq_len: self.max_seq_len = len(self.atom_seq_dict_heavy[bead])
-                if len(self.atom_seq_dict_hydrogens[bead]) > self.max_seq_len: self.max_seq_len = len(self.atom_seq_dict_hydrogens[bead])
-            else:
-                if len(self.atom_seq_dict[bead]) > self.max_seq_len: self.max_seq_len = len(self.atom_seq_dict[bead])
-            bonds_ndx, angles_ndx, dihs_ndx, ljs_ndx = [], [], [], []
-            #for atom in self.atom_seq_dict[bead]:
-            for atom in bead.atoms:
-                #print(atom.type.name, atom.index, bead.type.name, bead.index)
-                feature = self.features[atom]
-                if len(feature.env_beads) > self.max_beads: self.max_beads = len(feature.env_beads)
-                if len(feature.env_atoms) > self.max_atoms: self.max_atoms = len(feature.env_atoms)
-                if len(feature.bonds) > self.max_bonds: self.max_bonds = len(feature.bonds)
-                if len(feature.angles) > self.max_angles: self.max_angles = len(feature.angles)
-                if len(feature.dihs) > self.max_dihs: self.max_dihs = len(feature.dihs)
-                if len(feature.ljs) > self.max_ljs: self.max_ljs = len(feature.ljs)
-                bonds_ndx += feature.bond_ndx_init
-                angles_ndx += feature.angle_ndx_init
-                dihs_ndx += feature.dih_ndx_init
-                ljs_ndx += feature.lj_ndx_init
-            if len(bonds_ndx) > self.max_bonds_pb: self.max_bonds_pb = len(bonds_ndx)
-            if len(angles_ndx) > self.max_angles_pb: self.max_angles_pb = len(angles_ndx)
-            if len(dihs_ndx) > self.max_dihs_pb: self.max_dihs_pb = len(dihs_ndx)
-            if len(ljs_ndx) > self.max_ljs_pb: self.max_ljs_pb = len(ljs_ndx)
-
     def kick_atoms(self):
         for a in self.atoms:
             a.pos = np.random.normal(-self.kick, self.kick, 3)
 
     def get_loc_beads(self, bead):
         centered_positions = np.array([b.center for b in self.beads]) - bead.center
-        centered_positions = np.array([self.box.pbc_diff_vec(pos) for pos in centered_positions])
+        centered_positions = np.array([self.box.diff_vec(pos) for pos in centered_positions])
         #centered_positions = self.box.pbc_diff_vec_batch(np.array(centered_positions))
         centered_positions_sq = [r[0] * r[0] + r[1] * r[1] + r[2] * r[2] for r in centered_positions]
 
         indices = np.where(np.array(centered_positions_sq) <= self.cutoff_sq)[0]
         return [self.beads[i] for i in indices]
 
-    def rand_rot_mat(self):
-        #rotation axis
-        if self.align:
-            v_rot = np.array([0.0, 0.0, 1.0])
-        else:
-            phi = np.random.uniform(0, np.pi * 2)
-            costheta = np.random.uniform(-1, 1)
-            theta = np.arccos(costheta)
-            x = np.sin(theta) * np.cos(phi)
-            y = np.sin(theta) * np.sin(phi)
-            z = np.cos(theta)
-            v_rot = np.array([x, y, z])
-
-        #rotation angle
-        theta = np.random.uniform(0, np.pi * 2)
-
-        #rotation matrix
-        a = math.cos(theta / 2.0)
-        b, c, d = -v_rot * math.sin(theta / 2.0)
-        aa, bb, cc, dd = a * a, b * b, c * c, d * d
-        bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
-        rot_mat = np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
-                         [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
-                         [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
-
-        return rot_mat
 
     def energy(self, ref=False, shift=False, resolve_terms=False):
         pos1, pos2, equil, f_c = [], [], [], []

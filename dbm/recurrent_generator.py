@@ -11,40 +11,46 @@ class Generator():
         self.gibbs = gibbs
         self.rand_rot = rand_rot
 
+        if train:
+            self.samples = self.data.samples_train
+        else:
+            self.samples = self.data.samples_val
+
     def __iter__(self):
 
         #go through every sample
-        for sample in self.data.samples:
+        for sample in self.samples:
             #get sequence of beads to visit
             bead_seq = sample.gen_bead_seq(train=self.train)
             #choose dict for atoms in a givne bead (heavy or hydrogens)
             if self.hydrogens:
-                atom_seq_dict = sample.atom_seq_dict_hydrogens
+                atom_seq_dict = sample.aa_seq_hydrogens
             else:
-                atom_seq_dict = sample.atom_seq_dict_heavy
+                atom_seq_dict = sample.aa_seq_heavy
             #visit every bead
             for bead in bead_seq:
                 d = {}
-                start_atom = atom_seq_dict[bead][0]
-                feature = sample.features[start_atom]
+                #start_atom = atom_seq_dict[bead][0]
+                cg_f = sample.cg_features[bead]
+                loc_env = sample.loc_envs[bead]
 
                 #CG features
-                d["cg_feat"] = self.pad2d(feature.bead_featvec, self.data.max_beads)
-                d["cg_pos"] = self.pad2d(feature.bead_positions(), self.data.max_beads)
+                d["cg_feat"] = np.array(self.pad2d(cg_f.fv, self.data.max['beads_loc_env']), dtype=np.float32)
+                d["cg_pos"] = np.array(self.pad2d(loc_env.bead_positions(), self.data.max['beads_loc_env']), dtype=np.float32)
 
                 #env atom positions
                 if self.train:
-                    d["aa_pos"] = self.pad2d(feature.atom_positions_ref(), self.data.max_atoms)
+                    d["aa_pos"] = self.pad2d(loc_env.atom_positions_ref(), self.data.max['atoms_loc_env'])
                 else:
-                    d["aa_pos"] = self.pad2d(feature.atom_positions(), self.data.max_atoms)
+                    d["aa_pos"] = self.pad2d(loc_env.atom_positions(), self.data.max['atoms_loc_env'])
 
                 target_pos, target_type, aa_feat, repl = [], [], [], []
                 bonds_ndx, angles_ndx, dihs_ndx, ljs_ndx = [], [], [], []
                 for atom in atom_seq_dict[bead]:
-                    feature = sample.features[atom]
+                    aa_f = sample.aa_features[atom]
 
                     #target position
-                    t_pos = feature.rot(np.array([atom.ref_pos]))
+                    t_pos = loc_env.rot(np.array([atom.ref_pos]))
                     target_pos.append(t_pos)
 
                     #target atom type
@@ -53,46 +59,46 @@ class Generator():
                     target_type.append(t_type)
 
                     if self.gibbs:
-                        atom_featvec = self.pad2d(feature.atom_featvec_gibbs_hf, self.data.max_atoms)
-                        bonds_ndx += feature.bond_ndx_gibbs
-                        angles_ndx += feature.angle_ndx_gibbs
-                        dihs_ndx += feature.dih_ndx_gibbs
-                        ljs_ndx += feature.lj_ndx_gibbs
+                        atom_featvec = self.pad2d(aa_f.fv_gibbs, self.data.max['atoms_loc_env'])
+                        bonds_ndx += aa_f.energy_ndx_gibbs['bonds']
+                        angles_ndx += aa_f.energy_ndx_gibbs['angles']
+                        dihs_ndx += aa_f.energy_ndx_gibbs['dihs']
+                        ljs_ndx += aa_f.energy_ndx_gibbs['ljs']
                     else:
-                        atom_featvec = self.pad2d(feature.atom_featvec_init, self.data.max_atoms)
-                        bonds_ndx += feature.bond_ndx_init
-                        angles_ndx += feature.angle_ndx_init
-                        dihs_ndx += feature.dih_ndx_init
-                        ljs_ndx += feature.lj_ndx_init
+                        atom_featvec = self.pad2d(aa_f.fv_gibbs, self.data.max['atoms_loc_env'])
+                        bonds_ndx += aa_f.energy_ndx_init['bonds']
+                        angles_ndx += aa_f.energy_ndx_init['angles']
+                        dihs_ndx += aa_f.energy_ndx_init['dihs']
+                        ljs_ndx += aa_f.energy_ndx_init['ljs']
 
                     #AA featurevector
                     aa_feat.append(atom_featvec)
 
                     #replace vector: marks the index of the target atom in "aa_pos" (needed for recurrent training)
-                    r = self.pad1d(feature.repl, self.data.max_atoms, value=True)
+                    r = self.pad1d(aa_f.repl, self.data.max['atoms_loc_env'], value=True)
                     repl.append(r)
 
                 #pad energy terms
-                d["bonds_ndx"] = self.pad_energy_ndx(bonds_ndx, self.data.max_bonds_pb)
-                d["angles_ndx"] = self.pad_energy_ndx(angles_ndx, self.data.max_angles_pb, tuple([-1, 1, 2, 3]))
-                d["dihs_ndx"] = self.pad_energy_ndx(dihs_ndx, self.data.max_dihs_pb, tuple([-1, 1, 2, 3, 4]))
-                d["ljs_ndx"] = self.pad_energy_ndx(ljs_ndx, self.data.max_ljs_pb)
+                d["bonds_ndx"] = np.array(self.pad_energy_ndx(bonds_ndx, self.data.max['bonds_per_bead']), dtype=np.int64)
+                d["angles_ndx"] = np.array(self.pad_energy_ndx(angles_ndx, self.data.max['angles_per_bead'], tuple([-1, 1, 2, 3])), dtype=np.int64)
+                d["dihs_ndx"] = np.array(self.pad_energy_ndx(dihs_ndx, self.data.max['dihs_per_bead'], tuple([-1, 1, 2, 3, 4])), dtype=np.int64)
+                d["ljs_ndx"] = np.array(self.pad_energy_ndx(ljs_ndx, self.data.max['ljs_per_bead']), dtype=np.int64)
 
                 # Padding for recurrent training
-                for n in range(0, self.data.max_seq_len - len(atom_seq_dict[bead])):
+                for n in range(0, self.data.max['seq_len'] - len(atom_seq_dict[bead])):
                     target_pos.append(np.zeros((1, 3)))
                     target_type.append(target_type[-1])
                     aa_feat.append(np.zeros(aa_feat[-1].shape))
                     repl.append(np.ones(repl[-1].shape, dtype=bool))
-                d["target_pos"] = target_pos
-                d["target_type"] = target_type
-                d["aa_feat"] = aa_feat
-                d["repl"] = repl
+                d["target_pos"] = np.array(target_pos, dtype=np.float32)
+                d["target_type"] = np.array(target_type, dtype=np.float32)
+                d["aa_feat"] = np.array(aa_feat, dtype=np.float32)
+                d["repl"] = np.array(repl, dtype=np.bool)
 
                 #mask for sequences < max_seq_len
-                mask = np.zeros(self.data.max_seq_len)
+                mask = np.zeros(self.data.max['seq_len'])
                 mask[:len(atom_seq_dict[bead])] = 1
-                d["mask"] = mask
+                d["mask"] = np.array(mask, dtype=np.float32)
 
                 if self.rand_rot:
                     rot_mat = self.rand_rot_mat()
@@ -101,6 +107,13 @@ class Generator():
                     d["cg_pos"] = np.dot(d["cg_pos"], rot_mat)
 
                 yield atom_seq_dict[bead], d
+
+    def all_elems(self):
+        g = iter(self)
+        elems = []
+        for e in g:
+            elems.append(e)
+        return elems
 
 
     def rand_rot_mat(self):
@@ -127,6 +140,8 @@ class Generator():
         rot_mat = np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
                          [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
                          [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
+
+        rot_mat = rot_mat.astype('float32')
 
         return rot_mat
 

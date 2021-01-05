@@ -6,6 +6,7 @@ from torch.autograd import grad as torch_grad
 from dbm.util import make_grid_np, rand_rotation_matrix, voxelize_gauss, make_dir, avg_blob, voxelize_gauss_batch
 from dbm.torch_energy import *
 from dbm.output import *
+from dbm.recurrent_generator import Generator
 from tqdm import tqdm
 import numpy as np
 #from tqdm import tqdm
@@ -60,32 +61,17 @@ def rand_rot_mat(align):
 
 
 class DS(Dataset):
-    def __init__(self, cfg, train=True):
+    def __init__(self, data, cfg):
 
-        if train:
-            folders = cfg.get('data', 'train_data')
-            folders = folders.split(",")
-            folders = ["./data/" + folder.replace(" ", "") for folder in folders]
-        else:
-            folders = cfg.get('data', 'val_data')
-            folders = folders.split(",")
-            folders = ["./data/" + folder.replace(" ", "") for folder in folders]
+        generators = []
+        generators.append(Generator(data, hydrogens=False, gibbs=False, train=True, rand_rot=False))
+        generators.append(Generator(data, hydrogens=True, gibbs=False, train=True, rand_rot=False))
+        generators.append(Generator(data, hydrogens=False, gibbs=True, train=True, rand_rot=False))
+        generators.append(Generator(data, hydrogens=True, gibbs=True, train=True, rand_rot=False))
 
-        ff_file = cfg.get('forcefield', 'ff_file')
-        ff_file = "./forcefield/" + ff_file
-
-        aug = int(cfg.getboolean('universe', 'aug'))
-        align = int(cfg.getboolean('universe', 'align'))
-        order = cfg.get('universe', 'order')
-        heavy_first = int(cfg.getboolean('universe', 'heavy_first'))
-        cutoff = cfg.getfloat('universe', 'cutoff')
-
-        cg_dropout = cfg.getfloat('universe', 'cg_dropout')
-        cg_kick = cfg.getfloat('universe', 'cg_kick')
-
-
-        self.data = Data(folders, ff_file, cutoff=cutoff, align=align, aug=aug, order=order, heavy_first=heavy_first, cg_dropout=cg_dropout)
-        self.elems = self.data.make_set(train=True, cg_kick=cg_kick)
+        self.elems = []
+        for g in generators:
+            self.elems += g.all_elems()
 
         self.resolution = cfg.getint('grid', 'resolution')
         self.delta_s = cfg.getfloat('grid', 'length') / cfg.getint('grid', 'resolution')
@@ -109,22 +95,31 @@ class DS(Dataset):
         else:
             R = np.eye(3)
 
-        item = self.array(self.elems[ndx][1:], np.float32)
-        target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat, *energy_ndx = item
-        energy_ndx = self.array(energy_ndx, np.int64)
+        _, d = self.elems[ndx]
 
-        target_atom = voxelize_gauss(np.dot(target_pos, R.T), self.sigma, self.grid)
-        atom_grid = voxelize_gauss(np.dot(aa_pos, R.T), self.sigma, self.grid)
-        bead_grid = voxelize_gauss(np.dot(cg_pos, R.T), self.sigma, self.grid)
 
-        cg_features = cg_feat[:, :, None, None, None] * bead_grid[:, None, :, :, :]
+
+        #item = self.array(self.elems[ndx][1:], np.float32)
+        #target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat, *energy_ndx = item
+        #energy_ndx = self.array(energy_ndx, np.int64)
+
+        target_atom = voxelize_gauss(np.dot(d['target_pos'], R.T), self.sigma, self.grid)
+        atom_grid = voxelize_gauss(np.dot(d['aa_pos'], R.T), self.sigma, self.grid)
+        bead_grid = voxelize_gauss(np.dot(d['cg_pos'], R.T), self.sigma, self.grid)
+
+        cg_features = d['cg_feat'][:, :, None, None, None] * bead_grid[:, None, :, :, :]
         # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
         cg_features = np.sum(cg_features, 0)
+
+        elems = (target_atom, d['target_type'], d['aa_feat'], d['repl'], d['mask'])
+        initial = (atom_grid, cg_features)
+        energy_ndx = (d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])
 
         #energy_ndx = (bonds_ndx, angles_ndx, dihs_ndx, ljs_ndx)
 
         #return atom_grid, bead_grid, target_atom, target_type, aa_feat, repl, mask, energy_ndx
-        return atom_grid, cg_features, target_atom, target_type, aa_feat, repl.astype(np.bool), mask, energy_ndx, aa_pos
+        #return atom_grid, cg_features, target_atom, d['target_type'], d['aa_feat'], d['repl'], d['mask'], energy_ndx, d['aa_pos']
+        return elems, initial, energy_ndx
 
 
     def array(self, elems, dtype):
@@ -140,7 +135,8 @@ class GAN_SEQ():
         self.bs = self.cfg.getint('training', 'batchsize')
 
         #Data pipeline
-        ds_train = DS(self.cfg, train=True)
+        self.data = Data(cfg, save=False)
+        ds_train = DS(self.data, cfg)
         self.loader_train = DataLoader(
             ds_train,
             batch_size=self.bs,
@@ -513,8 +509,9 @@ class GAN_SEQ():
             data = tqdm(self.loader_train, total=steps_per_epoch, leave=False)
             for batch in data:
                 batch = self.map_to_device(batch)
-                (atom_grid, bead_features, target_atom, target_type, aa_feat, repl, mask, energy_ndx, aa_pos) = batch
-                elems = self.transpose_and_zip(target_atom, target_type, aa_feat, repl, mask)
+                elems, initial, energy_ndx = batch
+                #(atom_grid, bead_features, target_atom, target_type, aa_feat, repl, mask, energy_ndx, aa_pos) = batch
+                elems = self.transpose_and_zip(elems)
 
                 if n == n_critic:
                     w, e, b, a, d, l = self.train_step_gen(atom_grid, bead_features, elems, energy_ndx, aa_pos)
@@ -625,17 +622,19 @@ class GAN_SEQ():
 
         return c_loss
 
-    def train_step_gen(self, initial_atom_grid, bead_features, elems, energy_ndx, real_coords):
+    def train_step_gen(self, elems, initial, energy_ndx):
+
+        aa_grid, cg_features = initial
 
         g_wass = torch.zeros([], dtype=torch.float32, device=self.device)
 
-        fake_atom_grid = initial_atom_grid.clone()
-        real_atom_grid = initial_atom_grid.clone()
+        fake_atom_grid = aa_grid.clone()
+        real_atom_grid = aa_grid.clone()
 
         for target_atom, target_type, aa_featvec, repl, mask in elems:
             #prepare input for generator
             fake_aa_features = self.featurize(fake_atom_grid, aa_featvec)
-            c_fake = fake_aa_features + bead_features
+            c_fake = fake_aa_features + cg_features
             z = torch.empty(
                 [target_atom.shape[0], self.z_dim],
                 dtype=torch.float32,

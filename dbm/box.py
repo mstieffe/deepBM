@@ -38,7 +38,7 @@ class Box():
         diff_vec = diff_vec - self.center
         return diff_vec
 
-    def pbc_diff_vec_batch(self, diff_vec):
+    def diff_vec_batch(self, diff_vec):
         diff_vec = np.swapaxes(diff_vec, 0, 1)
         diff_vec = diff_vec + self.center[:, np.newaxis]
         diff_vec = self.move_inside(diff_vec)

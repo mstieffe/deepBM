@@ -47,10 +47,10 @@ class Data():
         self.dict_train, self.dict_val = {}, {}
         for path in self.dirs_train:
             self.dict_train[path.stem] = self.get_samples(path, save=save)
-        self.samples_train = list(self.dict_train.values())
+        self.samples_train = list(itertools.chain.from_iterable(self.dict_train.values()))
         for path in self.dirs_val:
             self.dict_val[path.stem] = self.get_samples(path, save=save)
-        self.samples_val = list(self.dict_val.values())
+        self.samples_val = list(itertools.chain.from_iterable(self.dict_val.values()))
 
         #find maximums for padding
         self.max = self.get_max_dict()
@@ -84,17 +84,42 @@ class Data():
         return samples
 
     def get_max_dict(self):
+        keys = ['seq_len',
+                'beads_loc_env',
+                'atoms_loc_env',
+                'bonds_per_atom',
+                'angles_per_atom',
+                'dihs_per_atom',
+                'ljs_per_atom',
+                'bonds_per_bead',
+                'angles_per_bead',
+                'dihs_per_bead',
+                'ljs_per_bead']
+        max_dict = dict([(key, 0) for key in keys])
+
         samples = self.samples_train + self.samples_val
-        max = {}
-        max['seq_len'] = max([u.max_seq_len for u in samples])
-        max['atoms'] = max([u.max_atoms for u in samples])
-        max['beads'] = max([u.max_beads for u in samples])
-        max['bonds_pb'] = max([u.max_bonds_pb for u in samples])
-        max['angles_pb'] = max([u.max_angles_pb for u in samples])
-        max['dihs_pb'] = max([u.max_dihs_pb for u in samples])
-        max['ljs_pb'] = max([u.max_ljs_pb for u in samples])
-        max['bonds'] = max([u.max_bonds for u in samples])
-        max['angles'] = max([u.max_angles for u in samples])
-        max['dihs'] = max([u.max_dihs for u in samples])
-        max['ljs'] = max([u.max_ljs for u in samples])
-        return max
+
+        for sample in samples:
+            for bead in sample.beads:
+                max_dict['seq_len'] = max(len(sample.aa_seq_heavy[bead]), len(sample.aa_seq_hydrogens[bead]), max_dict['seq_len'])
+                max_dict['beads_loc_env'] = max(len(sample.loc_envs[bead].beads), max_dict['beads_loc_env'])
+                max_dict['atoms_loc_env'] = max(len(sample.loc_envs[bead].atoms), max_dict['atoms_loc_env'])
+
+                for aa_seq in [sample.aa_seq_heavy[bead], sample.aa_seq_hydrogens[bead]]:
+                    bonds_ndx, angles_ndx, dihs_ndx, ljs_ndx = [], [], [], []
+                    for atom in aa_seq:
+                        f = sample.aa_features[atom]
+                        max_dict['bonds_per_atom'] = max(len(f.energy_ndx_gibbs['bonds']), max_dict['bonds_per_atom'])
+                        max_dict['angles_per_atom'] = max(len(f.energy_ndx_gibbs['angles']), max_dict['angles_per_atom'])
+                        max_dict['dihs_per_atom'] = max(len(f.energy_ndx_gibbs['dihs']), max_dict['dihs_per_atom'])
+                        max_dict['ljs_per_atom'] = max(len(f.energy_ndx_gibbs['ljs']), max_dict['ljs_per_atom'])
+                        bonds_ndx += f.energy_ndx_gibbs['bonds']
+                        angles_ndx += f.energy_ndx_gibbs['angles']
+                        dihs_ndx += f.energy_ndx_gibbs['dihs']
+                        ljs_ndx += f.energy_ndx_gibbs['ljs']
+                    max_dict['bonds_per_bead'] = max(len(set(bonds_ndx)), max_dict['bonds_per_bead'])
+                    max_dict['angles_per_bead'] = max(len(set(angles_ndx)), max_dict['angles_per_bead'])
+                    max_dict['dihs_per_bead'] = max(len(set(dihs_ndx)), max_dict['dihs_per_bead'])
+                    max_dict['ljs_per_bead'] = max(len(set(ljs_ndx)), max_dict['ljs_per_bead'])
+
+        return max_dict
