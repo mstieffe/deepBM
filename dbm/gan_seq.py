@@ -297,7 +297,7 @@ class GAN_SEQ():
     def map_to_device(self, tup):
         return tuple(tuple(y.to(device=self.device) for y in x) if type(x) is list else x.to(device=self.device) for x in tup)
 
-    def transpose_and_zip(self, *args):
+    def transpose_and_zip(self, args):
         args = tuple(torch.transpose(x, 0, 1) for x in args)
         elems = zip(*args)
         return elems
@@ -519,7 +519,7 @@ class GAN_SEQ():
                 elems = self.transpose_and_zip(elems)
 
                 if n == n_critic:
-                    w, e, b, a, d, l = self.train_step_gen(atom_grid, bead_features, elems, energy_ndx, aa_pos)
+                    w, e, b, a, d, l = self.train_step_gen(elems, initial, energy_ndx)
 
                     c, w, e, b, a, d, l = self.detach((c, w, e, b, a, d, l))
                     for value, list in zip((c, w, e, b, a, d, l), value_list):
@@ -533,6 +533,7 @@ class GAN_SEQ():
                     self.out.add_scalar("Generator/lj_energy", l, global_step=self.step)
                     self.out.add_scalar("Critic/loss", c, global_step=self.step)
 
+                    """
                     val_batch = next(self.loader_val)
                     val_batch = self.map_to_device(val_batch)
                     (atom_grid, bead_features, target_atom, target_type, aa_feat, repl, mask, energy_ndx, aa_pos) = val_batch
@@ -544,12 +545,12 @@ class GAN_SEQ():
                     self.out.add_scalar("Generator/angle_energy", a, global_step=self.step, mode='val')
                     self.out.add_scalar("Generator/dih_energy", d, global_step=self.step, mode='val')
                     self.out.add_scalar("Generator/lj_energy", l, global_step=self.step, mode='val')
-
+                    """
                     self.step += 1
                     n = 0
 
                 else:
-                    c = self.train_step_critic(atom_grid, bead_features, elems)
+                    c = self.train_step_critic(elems, initial)
                     n += 1
 
                 #if self.step % self.cfg.getint('training', 'n_save') == 0:
@@ -579,16 +580,19 @@ class GAN_SEQ():
 
 
 
-    def train_step_critic(self, initial_atom_grid, bead_features, elems):
+    def train_step_critic(self, elems, initial):
         c_loss = torch.zeros([], dtype=torch.float32, device=self.device)
 
-        fake_atom_grid = initial_atom_grid.clone()
-        real_atom_grid = initial_atom_grid.clone()
+        aa_grid, cg_features = initial
+
+
+        fake_atom_grid = aa_grid.clone()
+        real_atom_grid = aa_grid.clone()
 
 
         for target_atom, target_type, aa_featvec, repl, mask in elems:
             #prepare input for generator
-            c_fake, c_real = self.prepare_condition(fake_atom_grid, real_atom_grid, aa_featvec, bead_features)
+            c_fake, c_real = self.prepare_condition(fake_atom_grid, real_atom_grid, aa_featvec, cg_features)
             z = torch.empty(
                 [target_atom.shape[0], self.z_dim],
                 dtype=torch.float32,
