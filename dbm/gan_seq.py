@@ -146,9 +146,10 @@ class GAN_SEQ():
             num_workers=0,
         )
 
-        self.data = ds_train.data
-        self.ff = ds_train.data.ff
+        #self.data = ds_train.data
+        self.ff = self.data.ff
 
+        """
         ds_val = DS(self.cfg, train=False)
         loader_val = DataLoader(
             ds_val,
@@ -160,6 +161,7 @@ class GAN_SEQ():
         )
         self.loader_val = cycle(loader_val)
         self.val_data = ds_val.data
+        """
 
         self.n_gibbs = int(cfg.getint('validate', 'n_gibbs'))
 
