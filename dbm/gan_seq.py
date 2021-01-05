@@ -63,6 +63,8 @@ def rand_rot_mat(align):
 class DS(Dataset):
     def __init__(self, data, cfg):
 
+        self.data = data
+
         generators = []
         generators.append(Generator(data, hydrogens=False, gibbs=False, train=True, rand_rot=False))
         generators.append(Generator(data, hydrogens=True, gibbs=False, train=True, rand_rot=False))
@@ -82,6 +84,7 @@ class DS(Dataset):
             print("using random rotations during training...")
         else:
             self.rand_rot = False
+        self.align = int(cfg.getboolean('universe', 'align'))
 
         self.grid = make_grid_np(self.delta_s, self.resolution)
 
