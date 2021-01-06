@@ -64,7 +64,7 @@ class Data():
         if processed_path.exists():
             with open(processed_path, 'rb') as input:
                 samples = pickle.load(input)
-            print("Loaded train universe from " + processed_path)
+            print("Loaded train universe from " + str(processed_path))
         else:
             samples = []
             cg_dir = path / "cg"
