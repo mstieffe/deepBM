@@ -663,6 +663,8 @@ class GAN_SEQ():
         generated_atoms = []
         for target_type, aa_featvec, repl in zip(*elems):
             #prepare input for generator
+            print(aa_featvec.size())
+            print(aa_grid.size())
             fake_aa_features = self.featurize(aa_grid, aa_featvec)
             c_fake = fake_aa_features + cg_features
             z = torch.empty(
