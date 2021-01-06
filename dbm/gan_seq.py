@@ -630,8 +630,6 @@ class GAN_SEQ():
 
             energy_loss = self.covalent_weight*(b_energy + a_energy + d_energy) + self.lj_weight * l_energy
 
-        g_loss = g_wass + self.prior_weights[self.step] * energy_loss
-
         g_loss_dict = {"Generator/wasserstein": g_wass.detach().cpu().numpy(),
                        "Generator/energy": energy_loss.detach().cpu().numpy(),
                        "Generator/energy_bond": b_energy.detach().cpu().numpy(),
@@ -660,7 +658,7 @@ class GAN_SEQ():
         aa_grid, cg_features = initial
 
         generated_atoms = []
-        for target_type, aa_featvec, repl in zip(elems):
+        for target_type, aa_featvec, repl in zip(*elems):
             #prepare input for generator
             fake_aa_features = self.featurize(aa_grid, aa_featvec)
             c_fake = fake_aa_features + cg_features
