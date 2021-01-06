@@ -106,7 +106,10 @@ class Generator():
                     d["aa_pos"] = np.dot(d["aa_pos"], rot_mat)
                     d["cg_pos"] = np.dot(d["cg_pos"], rot_mat)
 
-                yield atom_seq_dict[bead], d
+                d['loc_env'] = loc_env
+                d['atom_seq'] = atom_seq_dict[bead]
+
+                yield d
 
     def all_elems(self):
         g = iter(self)

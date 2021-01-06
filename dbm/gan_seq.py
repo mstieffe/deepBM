@@ -98,7 +98,7 @@ class DS(Dataset):
         else:
             R = np.eye(3)
 
-        _, d = self.elems[ndx]
+        d = self.elems[ndx]
 
 
 
@@ -138,7 +138,7 @@ class GAN_SEQ():
         self.bs = self.cfg.getint('training', 'batchsize')
 
         #Data pipeline
-        self.data = Data(cfg, save=False)
+        self.data = Data(cfg, save=True)
         ds_train = DS(self.data, cfg)
         self.loader_train = DataLoader(
             ds_train,
@@ -149,11 +149,9 @@ class GAN_SEQ():
             num_workers=0,
         )
 
-        #self.data = ds_train.data
         self.ff = self.data.ff
 
-        """
-        ds_val = DS(self.cfg, train=False)
+        ds_val = DS(self.data, cfg)
         loader_val = DataLoader(
             ds_val,
             batch_size=self.bs,
@@ -164,7 +162,7 @@ class GAN_SEQ():
         )
         self.loader_val = cycle(loader_val)
         self.val_data = ds_val.data
-        """
+
 
         self.n_gibbs = int(cfg.getint('validate', 'n_gibbs'))
 
@@ -183,26 +181,12 @@ class GAN_SEQ():
             self.cfg.getint('training', 'n_checkpoints'),
             self.cfg.get('model', 'output_dir'),
         )
-        #forcefield for energy loss
-
         self.energy = Energy_torch(self.ff, self.device)
 
-        #self.bond_params = torch.tensor(self.ff.bond_params(), dtype=torch.float32, device=device)
-        #self.angle_params = torch.tensor(self.ff.angle_params(), dtype=torch.float32, device=device)
-        #self.dih_params = torch.tensor(self.ff.dih_params(), dtype=torch.float32, device=device)
-        #self.lj_params = torch.tensor(self.ff.lj_params(), dtype=torch.float32, device=device)
-
-        #self.atom_mass = torch.tensor([[[atype.mass for atype in self.ff.atom_types.values()]]], dtype=torch.float32, device=device) #(1, 1, n_atomtypes)
-
-
-        #print(self.energy_prior_weights)
-        #print(self.energy_prior_steps)
         self.prior_weights = self.get_prior_weights()
         self.lj_weight = cfg.getfloat('training', 'lj_weight')
         self.covalent_weight = cfg.getfloat('training', 'covalent_weight')
         self.energy_prior_mode = int(cfg.getint('training', 'energy_prior_mode'))
-
-        #print(self.prior_weights)
 
         self.w_prior = torch.tensor(self.prior_weights[self.step], dtype=torch.float32, device=device)
 
@@ -290,9 +274,6 @@ class GAN_SEQ():
             print("restored model!!!")
 
         self.out.prune_checkpoints()
-
-    #def map_to_device(self, tup):
-    #    return tuple(x.to(device=self.device) for x in tup)
 
     def map_to_device(self, tup):
         return tuple(tuple(y.to(device=self.device) for y in x) if type(x) is list else x.to(device=self.device) for x in tup)
@@ -393,24 +374,6 @@ class GAN_SEQ():
         #    print(f.size())
         return -torch.autograd.grad(energy, x, torch.ones_like(energy), create_graph=True, retain_graph=True)[0]
 
-    def force_matching_loss(self, real_coords, fake_atom_grid, energy_ndx):
-        fake_coords = avg_blob(
-            fake_atom_grid,
-            res=self.cfg.getint('grid', 'resolution'),
-            width=self.cfg.getfloat('grid', 'length'),
-            sigma=self.cfg.getfloat('grid', 'sigma'),
-            device=self.device,
-        )
-
-        fake_forces = self.get_forces(fake_coords, energy_ndx)
-        real_forces = self.get_forces(real_coords, energy_ndx)
-
-        force_loss = torch.mean((fake_forces - real_forces)**2)
-
-        fb, fa, fd, fl = self.get_energies_from_coords(fake_coords, energy_ndx)
-
-        return force_loss, torch.mean(fb), torch.mean(fa), torch.mean(fd), torch.mean(fl)
-
     def energy_min_loss(self, atom_grid, energy_ndx):
 
         fb, fa, fd, fl = self.get_energies_from_grid(atom_grid, energy_ndx)
@@ -422,24 +385,7 @@ class GAN_SEQ():
 
         return b_loss, a_loss, d_loss, l_loss
 
-    def truncated_energy_min_loss(self, real_atom_grid, fake_atom_grid, energy_ndx):
-
-        rb, ra, rd, rl = self.get_energies_from_grid(real_atom_grid, energy_ndx)
-        fb, fa, fd, fl = self.get_energies_from_grid(fake_atom_grid, energy_ndx)
-
-        b_dif = fb - rb
-        a_dif = fa - ra
-        d_dif = fd - rd
-        l_dif = fl - rl
-
-        b_loss = torch.mean(torch.max(b_dif, torch.tensor(0, dtype=torch.float32, device=self.device)))
-        a_loss = torch.mean(torch.max(a_dif, torch.tensor(0, dtype=torch.float32, device=self.device)))
-        d_loss = torch.mean(torch.max(d_dif, torch.tensor(0, dtype=torch.float32, device=self.device)))
-        l_loss = torch.mean(torch.max(l_dif, torch.tensor(0, dtype=torch.float32, device=self.device)))
-
-        return b_loss, a_loss, d_loss, l_loss, torch.mean(fb), torch.mean(fa), torch.mean(fd), torch.mean(fl)
-
-    def energy_loss_mean_abs_dif(self, real_atom_grid, fake_atom_grid, energy_ndx):
+    def energy_match_loss(self, real_atom_grid, fake_atom_grid, energy_ndx):
 
         rb, ra, rd, rl = self.get_energies_from_grid(real_atom_grid, energy_ndx)
         fb, fa, fd, fl = self.get_energies_from_grid(fake_atom_grid, energy_ndx)
@@ -451,51 +397,6 @@ class GAN_SEQ():
 
         return b_loss, a_loss, d_loss, l_loss, torch.mean(fb), torch.mean(fa), torch.mean(fd), torch.mean(fl)
 
-
-
-    def energy_loss_mean_sq_dif(self, real_atom_grid, fake_atom_grid, energy_ndx):
-
-        rb, ra, rd, rl = self.get_energies_from_grid(real_atom_grid, energy_ndx)
-        fb, fa, fd, fl = self.get_energies_from_grid(fake_atom_grid, energy_ndx)
-
-        b_loss = torch.mean((rb - fb)**2)
-        a_loss = torch.mean((ra - fa)**2)
-        d_loss = torch.mean((rd - fd)**2)
-        l_loss = torch.mean((rl - fl)**2)
-
-        return b_loss, a_loss, d_loss, l_loss, torch.mean(fb), torch.mean(fa), torch.mean(fd), torch.mean(fl)
-
-    def energy_loss_mean_abs_dif2(self, real_coords, fake_atom_grid, energy_ndx):
-
-        rb, ra, rd, rl = self.get_energies_from_coords(real_coords, energy_ndx)
-        fb, fa, fd, fl = self.get_energies_from_grid(fake_atom_grid, energy_ndx)
-
-        b_loss = torch.mean(torch.abs(rb - fb))
-        a_loss = torch.mean(torch.abs(ra - fa))
-        d_loss = torch.mean(torch.abs(rd - fd))
-        l_loss = torch.mean(torch.abs(rl - fl))
-
-        return b_loss, a_loss, d_loss, l_loss, torch.mean(fb), torch.mean(fa), torch.mean(fd), torch.mean(fl)
-
-    def free_energy_perturbation_loss(self, real_atom_grid, fake_atom_grid, energy_ndx, temp):
-
-        rb, ra, rd, rl = self.get_energies_from_grid(real_atom_grid, energy_ndx)
-        fb, fa, fd, fl = self.get_energies_from_grid(fake_atom_grid, energy_ndx)
-
-        real_energy = rb + ra + rd + rl
-        fake_energy = fb + fa + fd + fl
-        energy_dif = fake_energy - real_energy
-        energy_dif = self.energy.convert_to_joule(energy_dif)
-
-        boltzmann_weights = torch.exp(- energy_dif / (self.energy.boltzmann_const * temp))
-        print(energy_dif/ (self.energy.boltzmann_const * temp))
-        average_boltzmann_weight = torch.mean(boltzmann_weights)
-
-        #loss = - constants.value(u'Boltzmann constant') * temp * torch.log(average_boltzmann_weight + 1E-24)
-        loss = torch.abs(torch.log(average_boltzmann_weight + 1E-40))
-        #print(fake_energy, real_energy, loss)
-
-        return loss, torch.mean(fb), torch.mean(fa), torch.mean(fd), torch.mean(fl)
 
     def detach(self, t):
         t = tuple([c.detach().cpu().numpy() for c in t])
@@ -504,71 +405,60 @@ class GAN_SEQ():
     def train(self):
         steps_per_epoch = len(self.loader_train)
         n_critic = self.cfg.getint('training', 'n_critic')
-        n = 0
         n_save = int(self.cfg.getint('record', 'n_save'))
         
         epochs = tqdm(range(self.epoch, self.cfg.getint('training', 'n_epoch')))
         epochs.set_description('epoch: ')
         for epoch in epochs:
-            value_list = [[], [], [], [], [], [], []]
+            n = 0
+            loss_epoch = [[], [], [], [], [], [], []]
             data = tqdm(self.loader_train, total=steps_per_epoch, leave=False)
             for batch in data:
                 batch = self.map_to_device(batch)
                 elems, initial, energy_ndx = batch
-                #(atom_grid, bead_features, target_atom, target_type, aa_feat, repl, mask, energy_ndx, aa_pos) = batch
                 elems = self.transpose_and_zip(elems)
 
                 if n == n_critic:
-                    w, e, b, a, d, l = self.train_step_gen(elems, initial, energy_ndx)
+                    g_loss_dict = self.train_step_gen(elems, initial, energy_ndx)
+                    for key, value in g_loss_dict.items():
+                        self.out.add_scalar(key, value, global_step=self.step)
+                    data.set_description('D: {}, G: {}, {}, {}, {}, {}, {}'.format(c_loss,
+                                                                                   g_loss_dict['Generator/wasserstein'],
+                                                                                   g_loss_dict['Generator/energy'],
+                                                                                   g_loss_dict['Generator/energy_bond'],
+                                                                                   g_loss_dict['Generator/energy_angle'],
+                                                                                   g_loss_dict['Generator/energy_dih'],
+                                                                                   g_loss_dict['Generator/energy_lj']))
 
-                    c, w, e, b, a, d, l = self.detach((c, w, e, b, a, d, l))
-                    for value, list in zip((c, w, e, b, a, d, l), value_list):
-                        list.append(value)
-                    data.set_description('D: {}, G: {}, {}, {}, {}, {}, {}'.format(c, w, e, b, a, d, l))
-                    self.out.add_scalar("Generator/loss_w", w, global_step=self.step)
-                    self.out.add_scalar("Generator/loss_e", e, global_step=self.step)
-                    self.out.add_scalar("Generator/bond_energy", b, global_step=self.step)
-                    self.out.add_scalar("Generator/angle_energy", a, global_step=self.step)
-                    self.out.add_scalar("Generator/dih_energy", d, global_step=self.step)
-                    self.out.add_scalar("Generator/lj_energy", l, global_step=self.step)
-                    self.out.add_scalar("Critic/loss", c, global_step=self.step)
+                    for value, l in zip([c_loss] + list(g_loss_dict.values()), loss_epoch):
+                        l.append(value)
 
-                    """
+
+                    #track loss for val data
                     val_batch = next(self.loader_val)
                     val_batch = self.map_to_device(val_batch)
-                    (atom_grid, bead_features, target_atom, target_type, aa_feat, repl, mask, energy_ndx, aa_pos) = val_batch
-                    elems = self.transpose_and_zip(target_atom, target_type, aa_feat, repl, mask)
-                    w, e, b, a, d, l = self.val_step_gen(atom_grid, bead_features, elems, energy_ndx, aa_pos)
-                    self.out.add_scalar("Generator/loss_w", w, global_step=self.step, mode='val')
-                    self.out.add_scalar("Generator/loss_e", e, global_step=self.step, mode='val')
-                    self.out.add_scalar("Generator/bond_energy", b, global_step=self.step, mode='val')
-                    self.out.add_scalar("Generator/angle_energy", a, global_step=self.step, mode='val')
-                    self.out.add_scalar("Generator/dih_energy", d, global_step=self.step, mode='val')
-                    self.out.add_scalar("Generator/lj_energy", l, global_step=self.step, mode='val')
-                    """
+                    elems, initial, energy_ndx = val_batch
+                    elems = self.transpose_and_zip(elems)
+                    _ = self.val_step_gen(elems, initial, energy_ndx)
+
                     self.step += 1
                     n = 0
 
                 else:
-                    c = self.train_step_critic(elems, initial)
+                    c_loss = self.train_step_critic(elems, initial)
                     n += 1
 
-                #if self.step % self.cfg.getint('training', 'n_save') == 0:
-                #    self.make_checkpoint()
-                #    self.out.prune_checkpoints()
             tqdm.write('epoch {} steps {} : D: {} G: {}, {}, {}, {}, {}, {}'.format(
                 self.epoch,
                 self.step,
-                sum(value_list[0])/len(value_list[0]),
-                sum(value_list[1]) / len(value_list[1]),
-                sum(value_list[2]) / len(value_list[2]),
-                sum(value_list[3]) / len(value_list[3]),
-                sum(value_list[4]) / len(value_list[4]),
-                sum(value_list[5]) / len(value_list[5]),
-                sum(value_list[6]) / len(value_list[6]),
+                sum(loss_epoch[0]) / len(loss_epoch[0]),
+                sum(loss_epoch[1]) / len(loss_epoch[1]),
+                sum(loss_epoch[2]) / len(loss_epoch[2]),
+                sum(loss_epoch[3]) / len(loss_epoch[3]),
+                sum(loss_epoch[4]) / len(loss_epoch[4]),
+                sum(loss_epoch[5]) / len(loss_epoch[5]),
+                sum(loss_epoch[6]) / len(loss_epoch[6]),
             ))
-
-
 
             if epoch % n_save == 0:
                 self.make_checkpoint()
@@ -629,7 +519,7 @@ class GAN_SEQ():
         c_loss.backward()
         self.opt_critic.step()
 
-        return c_loss
+        return c_loss.detach().cpu().numpy()
 
     def train_step_gen(self, elems, initial, energy_ndx):
 
@@ -668,24 +558,8 @@ class GAN_SEQ():
             fake_atom_grid = torch.where(repl[:,:,None,None,None], fake_atom_grid, fake_atom)
             real_atom_grid = torch.where(repl[:,:,None,None,None], real_atom_grid, target_atom[:, None, :, :, :])
 
-        #b1, a1, d1, l1 = self.get_energies_from_coords(real_coords, energy_ndx)
-        #b2, a2, d2, l2 = self.get_energies_from_grid(real_atom_grid, energy_ndx)
-        #print(a1,a2)
-        #print(d1,d2)
-        #print(l1,l2)
-
         if self.energy_prior_mode == 1:
-            b_loss, a_loss, d_loss, l_loss, b_energy, a_energy, d_energy, l_energy = self.energy_loss_mean_abs_dif(real_atom_grid, fake_atom_grid, energy_ndx)
-            energy_loss = self.covalent_weight*(b_loss + a_loss + d_loss) + self.lj_weight * l_loss
-        elif self.energy_prior_mode == 2:
-            energy_loss, b_energy, a_energy, d_energy, l_energy = self.free_energy_perturbation_loss(real_atom_grid, fake_atom_grid, energy_ndx, temp=568)
-        elif self.energy_prior_mode == 3:
-            energy_loss, b_energy, a_energy, d_energy, l_energy = self.force_matching_loss(real_coords, fake_atom_grid, energy_ndx)
-        elif self.energy_prior_mode == 4:
-            b_loss, a_loss, d_loss, l_loss, b_energy, a_energy, d_energy, l_energy = self.energy_loss_mean_sq_dif(real_atom_grid, fake_atom_grid, energy_ndx)
-            energy_loss = self.covalent_weight*(b_loss + a_loss + d_loss) + self.lj_weight * l_loss
-        elif self.energy_prior_mode == 5:
-            b_loss, a_loss, d_loss, l_loss, b_energy, a_energy, d_energy, l_energy = self.truncated_energy_min_loss(real_atom_grid, fake_atom_grid, energy_ndx)
+            b_loss, a_loss, d_loss, l_loss, b_energy, a_energy, d_energy, l_energy = self.energy_match_loss(real_atom_grid, fake_atom_grid, energy_ndx)
             energy_loss = self.covalent_weight*(b_loss + a_loss + d_loss) + self.lj_weight * l_loss
         else:
             b_energy, a_energy, d_energy, l_energy = self.energy_min_loss(fake_atom_grid, energy_ndx)
@@ -699,19 +573,29 @@ class GAN_SEQ():
         g_loss.backward()
         self.opt_generator.step()
 
-        return g_wass, energy_loss, b_energy, a_energy, d_energy, l_energy
+        g_loss_dict = {"Generator/wasserstein": g_wass.detach().cpu().numpy(),
+                       "Generator/energy": energy_loss.detach().cpu().numpy(),
+                       "Generator/energy_bond": b_energy.detach().cpu().numpy(),
+                       "Generator/energy_angle": a_energy.detach().cpu().numpy(),
+                       "Generator/energy_dih": d_energy.detach().cpu().numpy(),
+                       "Generator/energy_lj": l_energy.detach().cpu().numpy()}
 
-    def val_step_gen(self, initial_atom_grid, bead_features, elems, energy_ndx, real_coords):
+        return g_loss_dict
+
+    def val_step_gen(self, elems, initial, energy_ndx):
+
+        aa_grid, cg_features = initial
+
 
         g_wass = torch.zeros([], dtype=torch.float32, device=self.device)
 
-        fake_atom_grid = initial_atom_grid.clone()
-        real_atom_grid = initial_atom_grid.clone()
+        fake_atom_grid = aa_grid.clone()
+        real_atom_grid = aa_grid.clone()
 
         for target_atom, target_type, aa_featvec, repl, mask in elems:
             #prepare input for generator
             fake_aa_features = self.featurize(fake_atom_grid, aa_featvec)
-            c_fake = fake_aa_features + bead_features
+            c_fake = fake_aa_features + cg_features
             z = torch.empty(
                 [target_atom.shape[0], self.z_dim],
                 dtype=torch.float32,
@@ -736,24 +620,10 @@ class GAN_SEQ():
             fake_atom_grid = torch.where(repl[:,:,None,None,None], fake_atom_grid, fake_atom)
             real_atom_grid = torch.where(repl[:,:,None,None,None], real_atom_grid, target_atom[:, None, :, :, :])
 
-        #b1, a1, d1, l1 = self.get_energies_from_coords(real_coords, energy_ndx)
-        #b2, a2, d2, l2 = self.get_energies_from_grid(real_atom_grid, energy_ndx)
-        #print(a1,a2)
-        #print(d1,d2)
-        #print(l1,l2)
+
 
         if self.energy_prior_mode == 1:
-            b_loss, a_loss, d_loss, l_loss, b_energy, a_energy, d_energy, l_energy = self.energy_loss_mean_abs_dif(real_atom_grid, fake_atom_grid, energy_ndx)
-            energy_loss = self.covalent_weight*(b_loss + a_loss + d_loss) + self.lj_weight * l_loss
-        elif self.energy_prior_mode == 2:
-            energy_loss, b_energy, a_energy, d_energy, l_energy = self.free_energy_perturbation_loss(real_atom_grid, fake_atom_grid, energy_ndx, temp=568)
-        elif self.energy_prior_mode == 3:
-            energy_loss, b_energy, a_energy, d_energy, l_energy = self.force_matching_loss(real_coords, fake_atom_grid, energy_ndx)
-        elif self.energy_prior_mode == 4:
-            b_loss, a_loss, d_loss, l_loss, b_energy, a_energy, d_energy, l_energy = self.energy_loss_mean_sq_dif(real_atom_grid, fake_atom_grid, energy_ndx)
-            energy_loss = self.covalent_weight*(b_loss + a_loss + d_loss) + self.lj_weight * l_loss
-        elif self.energy_prior_mode == 5:
-            b_loss, a_loss, d_loss, l_loss, b_energy, a_energy, d_energy, l_energy = self.truncated_energy_min_loss(real_atom_grid, fake_atom_grid, energy_ndx)
+            b_loss, a_loss, d_loss, l_loss, b_energy, a_energy, d_energy, l_energy = self.energy_match_loss(real_atom_grid, fake_atom_grid, energy_ndx)
             energy_loss = self.covalent_weight*(b_loss + a_loss + d_loss) + self.lj_weight * l_loss
         else:
             b_energy, a_energy, d_energy, l_energy = self.energy_min_loss(fake_atom_grid, energy_ndx)
@@ -761,34 +631,16 @@ class GAN_SEQ():
             energy_loss = self.covalent_weight*(b_energy + a_energy + d_energy) + self.lj_weight * l_energy
 
         g_loss = g_wass + self.prior_weights[self.step] * energy_loss
-        #g_loss = g_wass
 
-        return g_wass, energy_loss, b_energy, a_energy, d_energy, l_energy
+        g_loss_dict = {"Generator/wasserstein": g_wass.detach().cpu().numpy(),
+                       "Generator/energy": energy_loss.detach().cpu().numpy(),
+                       "Generator/energy_bond": b_energy.detach().cpu().numpy(),
+                       "Generator/energy_angle": a_energy.detach().cpu().numpy(),
+                       "Generator/energy_dih": d_energy.detach().cpu().numpy(),
+                       "Generator/energy_lj": l_energy.detach().cpu().numpy()}
 
-    def energy_test(self, initial_atom_grid, bead_features, elems, energy_ndx, aa_pos):
-        real_atom_grid = initial_atom_grid.clone()
+        return g_loss_dict
 
-        #for target_atom, target_type, aa_featvec, repl, mask in elems:
-            #prepare input for generator
-            #real_atom_grid = torch.where(repl[:,:,None,None,None], real_atom_grid, target_atom[:, None, :, :, :])
-
-        #testing
-        b,a,d,lj = energy_ndx
-        coords = avg_blob(
-            real_atom_grid,
-            res=self.cfg.getint('grid', 'resolution'),
-            width=self.cfg.getfloat('grid', 'length'),
-            sigma=self.cfg.getfloat('grid', 'sigma'),
-            device=self.device,
-        )
-        torch.set_printoptions(threshold=5000)
-
-        b_energy = torch.sum(bond_energy(coords, b, self.bond_params))
-        a_energy = torch.sum(angle_energy(coords, a, self.angle_params))
-        d_energy = torch.sum(dih_energy(coords, d, self.dih_params))
-        l_energy = torch.sum(lj_energy(coords, lj, self.lj_params))
-
-        return b_energy, a_energy, d_energy , l_energy
 
     def to_tensor_and_zip(self, *args):
         args = tuple(torch.from_numpy(x).float().to(self.device) if x.dtype == np.dtype(np.float64) else torch.from_numpy(x).to(self.device) for x in args)
@@ -796,12 +648,22 @@ class GAN_SEQ():
         elems = zip(*args)
         return elems
 
-    def predict(self, fake_atom_grid, bead_features, elems, energy_ndx):
-        new_atoms = []
-        for target_type, aa_featvec, repl in elems:
+    def to_tensor(self, t):
+        return tuple(torch.from_numpy(x).to(self.device) for x in t)
+
+    def transpose(self, t):
+        return tuple(torch.transpose(x, 0, 1) for x in t)
+
+
+    def predict(self, elems, initial, energy_ndx):
+
+        aa_grid, cg_features = initial
+
+        generated_atoms = []
+        for target_type, aa_featvec, repl in zip(elems):
             #prepare input for generator
-            fake_aa_features = self.featurize(fake_atom_grid, aa_featvec)
-            c_fake = fake_aa_features + bead_features
+            fake_aa_features = self.featurize(aa_grid, aa_featvec)
+            c_fake = fake_aa_features + cg_features
             z = torch.empty(
                 [target_type.shape[0], self.z_dim],
                 dtype=torch.float32,
@@ -810,22 +672,22 @@ class GAN_SEQ():
 
             #generate fake atom
             fake_atom = self.generator(z, target_type, c_fake)
-            new_atoms.append(fake_atom)
+            generated_atoms.append(fake_atom)
 
             #update aa grids
-            fake_atom_grid = torch.where(repl[:,:,None,None,None], fake_atom_grid, fake_atom)
+            aa_grid = torch.where(repl[:,:,None,None,None], aa_grid, fake_atom)
 
-        new_atoms = torch.stack(new_atoms, dim = 1)
-        new_atom_coords = avg_blob(
-            new_atoms,
+        generated_atoms = torch.stack(generated_atoms, dim = 1)
+        generated_atoms_coords = avg_blob(
+            generated_atoms,
             res=self.cfg.getint('grid', 'resolution'),
             width=self.cfg.getfloat('grid', 'length'),
             sigma=self.cfg.getfloat('grid', 'sigma'),
             device=self.device,
         )
 
-        coords = avg_blob(
-            fake_atom_grid,
+        aa_coords = avg_blob(
+            aa_grid,
             res=self.cfg.getint('grid', 'resolution'),
             width=self.cfg.getfloat('grid', 'length'),
             sigma=self.cfg.getfloat('grid', 'sigma'),
@@ -833,16 +695,14 @@ class GAN_SEQ():
         )
 
         bond_ndx, angle_ndx, dih_ndx, lj_ndx = energy_ndx
-        b_energy = self.energy.bond(coords, bond_ndx)
-        a_energy = self.energy.angle(coords, angle_ndx)
-        d_energy = self.energy.dih(coords, dih_ndx)
-        l_energy = self.energy.lj(coords, lj_ndx)
+        b_energy = self.energy.bond(aa_coords, bond_ndx)
+        a_energy = self.energy.angle(aa_coords, angle_ndx)
+        d_energy = self.energy.dih(aa_coords, dih_ndx)
+        l_energy = self.energy.lj(aa_coords, lj_ndx)
 
-        return new_atom_coords, b_energy , a_energy , d_energy , l_energy
+        return generated_atoms_coords, b_energy + a_energy + d_energy + l_energy
 
     def validate(self, samples_dir=None):
-
-        mode = self.cfg.get('validate', 'bm_mode')
 
         if samples_dir:
             samples_dir = self.out.output_dir / samples_dir
@@ -856,136 +716,94 @@ class GAN_SEQ():
         sigma = self.cfg.getfloat('grid', 'sigma')
         grid = make_grid_np(delta_s, resolution)
 
-        cg_kick = self.cfg.getfloat('universe', 'cg_kick')
+        rot_mtxs = rot_mat_batch(self.bs)
 
-        start = timer()
+        data_gen_init = []
+        data_gen_init.append(iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False)))
+        data_gen_init.append(iter(Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False)))
 
-        #if samples_dir:
-        #    self.samples_dir = self.model_dir + '/' + samples_dir
-        #    self.make_dir(self.samples_dir)
-        #print("Saving samples in {}".format(self.samples_dir), "...", end='')
-        start_glob = timer()
-        time = timer()
-        #u_bm = deepcopy(self.u_val)
-        bm_iter = self.val_data.make_recurrent_batch(bs=self.bs, train=False, mode="init", cg_kick=cg_kick)
+        data_gen_gibbs = []
+        data_gen_gibbs.append(iter(Generator(self.data, hydrogens=False, gibbs=True, train=False, rand_rot=False)))
+        data_gen_gibbs.append(iter(Generator(self.data, hydrogens=True, gibbs=True, train=False, rand_rot=False)))
+
         try:
             self.generator.eval()
             self.critic.eval()
 
-            for batch in bm_iter:
-                print("loop: ", timer()-time)
-                time = timer()
+            for data_gen in data_gen_init:
+                for d in data_gen:
+                    atom_grid = voxelize_gauss(np.matmul(d['aa_pos'], rot_mtxs), sigma, grid)
+                    bead_grid = voxelize_gauss(np.matmul(d['cg_pos'], rot_mtxs), sigma, grid)
 
-                features, target_type, atom_featvec, repl, atom_pos, bead_pos, bead_featvec, b_ndx, a_ndx, d_ndx, lj_ndx = batch
+                    cg_features = d['cg_feat'][:, :, None, None, None] * bead_grid[:, None, :, :, :]
+                    # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
+                    cg_features = np.sum(cg_features, 0)
 
-                with torch.no_grad():
-                    start = timer()
-                    atom_grid = torch.from_numpy(voxelize_gauss(atom_pos, sigma, grid)).float().to(self.device)
-                    bead_grid = voxelize_gauss(bead_pos, sigma, grid)
-                    cg_features = bead_featvec[..., None, None, None] * bead_grid[:, :, None, :, :, :]
-                    cg_features = torch.from_numpy(np.sum(cg_features, 1)).float().to(self.device)
+                    elems = self.transpose(self.to_tensor((d['target_type'], d['aa_feat'], d['repl'])))
+                    initial = self.to_tensor((atom_grid, cg_features))
+                    energy_ndx = self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx']))
 
-                    repl = repl.astype(np.bool)
-                    energy_ndx = (b_ndx, a_ndx, d_ndx, lj_ndx)
-                    energy_ndx = tuple(torch.from_numpy(x).to(self.device) for x in energy_ndx)
-
-                    elems = self.to_tensor_and_zip(target_type, atom_featvec, repl)
-
-                    print("prep input: ", timer()-start)
-                    start = timer()
-                    new_coords, a,b,c,d = self.predict(atom_grid, cg_features, elems, energy_ndx)
-                    print("predit: ", timer()- start)
-                    start = timer()
+                    new_coords, energies = self.predict(elems, initial, energy_ndx)
                     new_coords = np.squeeze(new_coords)
 
-                    if mode == "steep":
-                        energies = a + b + c + d
-                        energies = np.squeeze(energies)
-                        ndx = energies.argmin()
-                    elif mode == "lj_steep":
-                        energies = d
-                        energies = np.squeeze(energies)
-                        ndx = energies.argmin()
-                    elif mode == "bonded_steep":
-                        energies = a + b + c
-                        energies = np.squeeze(energies)
-                        ndx = energies.argmin()
-                    else:
-                        ndx = np.random.randint(self.bs)
-
+                    energies = np.squeeze(energies)
+                    ndx = energies.argmin()
 
                     new_coords = new_coords[ndx, :, :].detach().cpu().numpy()
-                    rot_mat = rot_mat_z(np.pi*2*ndx/self.bs)
-                    new_coords = np.dot(new_coords, rot_mat.T)
-                    for c, f in zip(new_coords, features):
-                        f.atom.pos = f.rot_back(c)
-                    print("insert new coords: ", timer()-start)
-            print("total: ", timer()-start_glob)
-            start = timer()
-            for s in self.val_data.samples:
-                f_name = s.name+"_init_" + str(self.step) + ".gro"
-                s.write_gro_file(samples_dir / f_name)
-            self.val_data.evaluate(folder=str(samples_dir)+"/", tag="_init_" + mode + "_" + str(self.step), ref=True)
-            print("evaluate: ", timer()-start)
+                    new_coords = np.dot(new_coords, rot_mtxs[ndx].T)
+                    for c, a in zip(new_coords, d['atom_seq']):
+                        a.pos = d['loc_env'].rot_back(c)
 
-            print("init done!!!")
+            for data_gen in data_gen_init:
+                for d in data_gen:
+                    atom_grid = voxelize_gauss(np.matmul(d['aa_pos'], rot_mtxs), sigma, grid)
+                    bead_grid = voxelize_gauss(np.matmul(d['cg_pos'], rot_mtxs), sigma, grid)
 
-            for n in range(0, self.n_gibbs):
-                bm_iter = self.val_data.make_recurrent_batch(bs=self.bs, train=False, mode="gibbs")
-                for batch in bm_iter:
-                    features, target_type, atom_featvec, repl, atom_pos, bead_pos, bead_featvec, b_ndx, a_ndx, d_ndx, lj_ndx = batch
+                    cg_features = d['cg_feat'][:, :, None, None, None] * bead_grid[:, None, :, :, :]
+                    # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
+                    cg_features = np.sum(cg_features, 0)
 
-                    with torch.no_grad():
+                    elems = self.transpose(self.to_tensor((d['target_type'], d['aa_feat'], d['repl'])))
+                    initial = self.to_tensor((atom_grid, cg_features))
+                    energy_ndx = self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx']))
 
-                        atom_grid = torch.from_numpy(voxelize_gauss(atom_pos, sigma, grid)).float().to(self.device)
-                        bead_grid = voxelize_gauss(bead_pos, sigma, grid)
-                        cg_features = bead_featvec[..., None, None, None] * bead_grid[:, :, None, :, :, :]
-                        cg_features = torch.from_numpy(np.sum(cg_features, 1)).float().to(self.device)
+                    new_coords, energies = self.predict(elems, initial, energy_ndx)
+                    new_coords = np.squeeze(new_coords)
 
+                    energies = np.squeeze(energies)
+                    ndx = energies.argmin()
 
-                        repl = repl.astype(np.bool)
-                        energy_ndx = (b_ndx, a_ndx, d_ndx, lj_ndx)
-                        energy_ndx = tuple(torch.from_numpy(x).to(self.device) for x in energy_ndx)
-
-                        elems = self.to_tensor_and_zip(target_type, atom_featvec, repl)
-
-                        new_coords, a, b, c, d = self.predict(atom_grid, cg_features, elems, energy_ndx)
-                        new_coords = np.squeeze(new_coords)
-
-                        if mode == "steep":
-                            energies = a + b + c + d
-                            energies = np.squeeze(energies)
-                            ndx = energies.argmin()
-                        elif mode == "lj_steep":
-                            energies = d
-                            energies = np.squeeze(energies)
-                            ndx = energies.argmin()
-                        elif mode == "bonded_steep":
-                            energies = a + b + c
-                            energies = np.squeeze(energies)
-                            ndx = energies.argmin()
-                        else:
-                            ndx = np.random.randint(self.bs)
-
-                        new_coords = new_coords[ndx, :, :].detach().cpu().numpy()
-                        rot_mat = rot_mat_z(np.pi * 2 * ndx / self.bs)
-                        new_coords = np.dot(new_coords, rot_mat.T)
-                        for c, f in zip(new_coords, features):
-                            f.atom.pos = f.rot_back(c)
-
-                for s in self.val_data.samples:
-                    f_name = s.name+"_gibbs"+str(n)+"_" + str(self.step) + ".gro"
-                    s.write_gro_file(samples_dir / f_name)
-                self.val_data.evaluate(folder=str(samples_dir)+"/", tag="_gibbs_" + mode + "_" + str(n) + "_" + str(self.step), ref=True)
+                    new_coords = new_coords[ndx, :, :].detach().cpu().numpy()
+                    new_coords = np.dot(new_coords, rot_mtxs[ndx].T)
+                    for c, a in zip(new_coords, d['atom_seq']):
+                        a.pos = d['loc_env'].rot_back(c)
 
             #reset atom positions
-            self.val_data.kick_atoms()
-
-            end = timer()
-            print("done!", "time:", end - start)
+            for sample in self.data.samples_val:
+                sample.write_gro_file(samples_dir / sample.name + str(self.step) + ".gro")
+                sample.kick_atoms()
         finally:
             self.generator.train()
             self.critic.train()
+
+
+
+def rot_mat_batch(bs):
+    rot_mtxs = []
+
+    v_rot = np.array([0.0, 0.0, 1.0])
+    for n in range(0, bs):
+        theta = np.pi * 2 * n / bs
+        # rotation matrix
+        a = math.cos(theta / 2.0)
+        b, c, d = -v_rot * math.sin(theta / 2.0)
+        aa, bb, cc, dd = a * a, b * b, c * c, d * d
+        bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
+        rot_mat = np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
+                            [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
+                            [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
+        rot_mtxs.append(rot_mat)
+    return np.array(rot_mtxs)
 
 def rot_mat_z(theta):
     #rotation axis
