@@ -740,7 +740,7 @@ class GAN_SEQ():
 
                     cg_features = d['cg_feat'][None, :, :, None, None, None] * bead_grid[:, :, None, :, :, :]
                     # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
-                    cg_features = np.sum(cg_features, 0)
+                    cg_features = np.sum(cg_features, 1)
 
                     elems = self.transpose(self.insert_dim(self.to_tensor((d['target_type'], d['aa_feat'], d['repl']))))
                     initial = self.to_tensor((atom_grid, cg_features))
@@ -764,7 +764,7 @@ class GAN_SEQ():
 
                     cg_features = d['cg_feat'][None, :, :, None, None, None] * bead_grid[:, :, None, :, :, :]
                     # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
-                    cg_features = np.sum(cg_features, 0)
+                    cg_features = np.sum(cg_features, 1)
 
                     elems = self.insert_dim(self.transpose(self.to_tensor((d['target_type'], d['aa_feat'], d['repl']))))
                     initial = self.to_tensor((atom_grid, cg_features))
