@@ -667,11 +667,13 @@ class GAN_SEQ():
             print(aa_grid.size())
             fake_aa_features = self.featurize(aa_grid, aa_featvec)
             c_fake = fake_aa_features + cg_features
+            target_type = target_type.repeat(self.bs, 1)
             z = torch.empty(
                 [target_type.shape[0], self.z_dim],
                 dtype=torch.float32,
                 device=self.device,
             ).normal_()
+
 
             #generate fake atom
             fake_atom = self.generator(z, target_type, c_fake)
