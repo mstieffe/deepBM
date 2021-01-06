@@ -460,12 +460,13 @@ class GAN_SEQ():
                 sum(loss_epoch[6]) / len(loss_epoch[6]),
             ))
 
+            self.epoch += 1
+
             if epoch % n_save == 0:
                 self.make_checkpoint()
                 self.out.prune_checkpoints()
                 self.validate()
 
-            self.epoch += 1
 
 
 
@@ -652,6 +653,8 @@ class GAN_SEQ():
     def transpose(self, t):
         return tuple(torch.transpose(x, 0, 1) for x in t)
 
+    def insert_dim(self, t):
+        return tuple(x[None, :] for x in t)
 
     def predict(self, elems, initial, energy_ndx):
 
@@ -737,9 +740,9 @@ class GAN_SEQ():
                     # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
                     cg_features = np.sum(cg_features, 0)
 
-                    elems = self.transpose(self.to_tensor((d['target_type'], d['aa_feat'], d['repl'])))
+                    elems = self.insert_dim(self.transpose(self.to_tensor((d['target_type'], d['aa_feat'], d['repl']))))
                     initial = self.to_tensor((atom_grid, cg_features))
-                    energy_ndx = self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx']))
+                    energy_ndx = self.insert_dim(self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])))
 
                     new_coords, energies = self.predict(elems, initial, energy_ndx)
                     new_coords = np.squeeze(new_coords)
@@ -752,7 +755,7 @@ class GAN_SEQ():
                     for c, a in zip(new_coords, d['atom_seq']):
                         a.pos = d['loc_env'].rot_back(c)
 
-            for data_gen in data_gen_init:
+            for data_gen in data_gen_gibbs:
                 for d in data_gen:
                     atom_grid = voxelize_gauss(np.matmul(d['aa_pos'], rot_mtxs), sigma, grid)
                     bead_grid = voxelize_gauss(np.matmul(d['cg_pos'], rot_mtxs), sigma, grid)
@@ -761,9 +764,9 @@ class GAN_SEQ():
                     # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
                     cg_features = np.sum(cg_features, 0)
 
-                    elems = self.transpose(self.to_tensor((d['target_type'], d['aa_feat'], d['repl'])))
+                    elems = self.insert_dim(self.transpose(self.to_tensor((d['target_type'], d['aa_feat'], d['repl']))))
                     initial = self.to_tensor((atom_grid, cg_features))
-                    energy_ndx = self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx']))
+                    energy_ndx = self.insert_dim(self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])))
 
                     new_coords, energies = self.predict(elems, initial, energy_ndx)
                     new_coords = np.squeeze(new_coords)
