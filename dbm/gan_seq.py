@@ -735,7 +735,7 @@ class GAN_SEQ():
                     atom_grid = voxelize_gauss(np.matmul(d['aa_pos'], rot_mtxs), sigma, grid)
                     bead_grid = voxelize_gauss(np.matmul(d['cg_pos'], rot_mtxs), sigma, grid)
 
-                    cg_features = d['cg_feat'][:, :, None, None, None] * bead_grid[:, None, :, :, :]
+                    cg_features = d['cg_feat'][None, :, :, None, None, None] * bead_grid[:, :, None, :, :, :]
                     # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
                     cg_features = np.sum(cg_features, 0)
 
@@ -759,7 +759,7 @@ class GAN_SEQ():
                     atom_grid = voxelize_gauss(np.matmul(d['aa_pos'], rot_mtxs), sigma, grid)
                     bead_grid = voxelize_gauss(np.matmul(d['cg_pos'], rot_mtxs), sigma, grid)
 
-                    cg_features = d['cg_feat'][:, :, None, None, None] * bead_grid[:, None, :, :, :]
+                    cg_features = d['cg_feat'][None, :, :, None, None, None] * bead_grid[:, :, None, :, :, :]
                     # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
                     cg_features = np.sum(cg_features, 0)
 
@@ -804,21 +804,3 @@ def rot_mat_batch(bs):
                             [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
         rot_mtxs.append(rot_mat)
     return np.array(rot_mtxs)
-
-def rot_mat_z(theta):
-    #rotation axis
-    v_rot = np.array([0.0, 0.0, 1.0])
-
-    #rotation angle
-    #theta = np.random.uniform(0, np.pi * 2)
-
-    #rotation matrix
-    a = math.cos(theta / 2.0)
-    b, c, d = -v_rot * math.sin(theta / 2.0)
-    aa, bb, cc, dd = a * a, b * b, c * c, d * d
-    bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
-    rot_mat = np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
-                     [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
-                     [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
-
-    return rot_mat
