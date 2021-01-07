@@ -612,8 +612,8 @@ class GAN_SEQ():
         #generated_atoms_coords = generated_atoms_coords.detach().cpu().numpy()
         #energy = energy.detach().cpu().numpy()
 
-        generated_atoms_coords = generated_atoms_coords.data.numpy()
-        energy = energy.data.numpy()
+        generated_atoms_coords = generated_atoms_coords.data.cpu().numpy()
+        energy = energy.data.cpu().numpy()
 
         return generated_atoms_coords, energy
 
