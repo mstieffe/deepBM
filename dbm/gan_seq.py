@@ -573,7 +573,7 @@ class GAN_SEQ():
         return tuple(x[None, :] for x in t)
 
     def repeat(self, t):
-        return tuple(torch.cat(self.bs*[x]) for x in t)
+        return tuple(torch.stack(self.bs*[x]) for x in t)
 
     def predict(self, elems, initial, energy_ndx):
 
