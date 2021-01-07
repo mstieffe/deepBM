@@ -57,6 +57,8 @@ class Energy_torch():
         dis = torch.sum(dis, 2)
         dis = torch.sqrt(dis)
 
+        print(dis.size())
+
         #dis = tf.clip_by_value(dis, 10E-8, 1000.0)
         dis = torch.where(dis > self.bond_min_dist, dis, self.bond_min_dist)
 
@@ -66,8 +68,11 @@ class Energy_torch():
 
         en = en * f_c / 2.0
 
+        print(en.size)
         en = torch.sum(en, 1)
 
+
+        print(en.size())
         return en
 
 
