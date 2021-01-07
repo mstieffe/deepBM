@@ -666,7 +666,12 @@ class GAN_SEQ():
                     ndx = energies.argmin()
                     print("argmin: ", timer()-start2)
 
-                    new_coords = new_coords[ndx, :, :].detach().cpu().numpy()
+                    #new_coords = new_coords[ndx, :, :].detach().cpu().numpy()
+                    new_coords = new_coords[ndx, :, :]
+                    print("select: ", timer()-start2)
+
+                    new_coords = new_coords.detach().cpu().numpy()
+
                     print("detach: ", timer()-start2)
 
                     new_coords = np.dot(new_coords, rot_mtxs[ndx].T)
