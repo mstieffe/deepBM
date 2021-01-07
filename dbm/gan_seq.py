@@ -610,8 +610,8 @@ class GAN_SEQ():
         b_energy, a_energy, d_energy, l_energy = self.get_energies_from_grid(aa_grid, energy_ndx)
         energy = b_energy + a_energy + d_energy + l_energy
 
-        generated_atoms_coords = generated_atoms_coords.detach().cpu().numpy()
-        energy = energy.detach().cpu().numpy()
+        #generated_atoms_coords = generated_atoms_coords.detach().cpu().numpy()
+        #energy = energy.detach().cpu().numpy()
 
         #generated_atoms_coords = generated_atoms_coords.data.cpu().numpy()
         #energy = energy.data.cpu().numpy()
