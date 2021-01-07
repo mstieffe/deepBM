@@ -3,7 +3,7 @@ from torch.optim import Adam, RMSprop
 from torch.utils.data import Dataset, DataLoader
 from torch.autograd import Variable
 from torch.autograd import grad as torch_grad
-from dbm.util import make_grid_np, rand_rotation_matrix, voxelize_gauss, make_dir, avg_blob, voxelize_gauss_batch
+from dbm.util import make_grid_np, rand_rot_mtx, rot_mtx_batch, voxelize_gauss, make_dir, avg_blob, voxelize_gauss_batch
 from dbm.torch_energy import *
 from dbm.output import *
 from dbm.recurrent_generator import Generator
@@ -30,34 +30,6 @@ from itertools import cycle
 #tf.compat.v1.disable_eager_execution()
 
 torch.set_default_dtype(torch.float32)
-
-
-def rand_rot_mat(align):
-    # rotation axis
-    if align:
-        v_rot = np.array([0.0, 0.0, 1.0])
-    else:
-        phi = np.random.uniform(0, np.pi * 2)
-        costheta = np.random.uniform(-1, 1)
-        theta = np.arccos(costheta)
-        x = np.sin(theta) * np.cos(phi)
-        y = np.sin(theta) * np.sin(phi)
-        z = np.cos(theta)
-        v_rot = np.array([x, y, z])
-
-    # rotation angle
-    theta = np.random.uniform(0, np.pi * 2)
-
-    # rotation matrix
-    a = math.cos(theta / 2.0)
-    b, c, d = -v_rot * math.sin(theta / 2.0)
-    aa, bb, cc, dd = a * a, b * b, c * c, d * d
-    bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
-    rot_mat = np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
-                        [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
-                        [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
-
-    return rot_mat
 
 
 class DS(Dataset):
@@ -94,7 +66,7 @@ class DS(Dataset):
 
     def __getitem__(self, ndx):
         if self.rand_rot:
-            R = rand_rot_mat(self.data.align)
+            R = rand_rot_mtx(self.data.align)
         else:
             R = np.eye(3)
 
@@ -650,7 +622,7 @@ class GAN_SEQ():
         sigma = self.cfg.getfloat('grid', 'sigma')
         grid = make_grid_np(delta_s, resolution)
 
-        rot_mtxs = rot_mat_batch(self.bs)
+        rot_mtxs = rot_mtx_batch(self.bs)
 
         data_generators = []
         data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False)))
@@ -669,6 +641,7 @@ class GAN_SEQ():
                 start = timer()
 
                 for d in data_gen:
+                    start2 = timer()
                     atom_grid = voxelize_gauss(np.matmul(d['aa_pos'], rot_mtxs), sigma, grid)
                     bead_grid = voxelize_gauss(np.matmul(d['cg_pos'], rot_mtxs), sigma, grid)
 
@@ -680,7 +653,12 @@ class GAN_SEQ():
                     initial = self.to_tensor((atom_grid, cg_features))
                     energy_ndx = self.insert_dim(self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])))
 
+                    print("prep: ", timer()-start2)
+
                     new_coords, energies = self.predict(elems, initial, energy_ndx)
+
+                    print("predict: ", timer()-start2)
+
                     new_coords = np.squeeze(new_coords)
 
                     energies = np.squeeze(energies)
@@ -690,6 +668,7 @@ class GAN_SEQ():
                     new_coords = np.dot(new_coords, rot_mtxs[ndx].T)
                     for c, a in zip(new_coords, d['atom_seq']):
                         a.pos = d['loc_env'].rot_back(c)
+                    print("insert: ", timer()-start2)
 
                 print(timer()-start)
             #reset atom positions
@@ -702,19 +681,3 @@ class GAN_SEQ():
 
 
 
-def rot_mat_batch(bs):
-    rot_mtxs = []
-
-    v_rot = np.array([0.0, 0.0, 1.0])
-    for n in range(0, bs):
-        theta = np.pi * 2 * n / bs
-        # rotation matrix
-        a = math.cos(theta / 2.0)
-        b, c, d = -v_rot * math.sin(theta / 2.0)
-        aa, bb, cc, dd = a * a, b * b, c * c, d * d
-        bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
-        rot_mat = np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
-                            [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
-                            [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
-        rot_mtxs.append(rot_mat)
-    return np.array(rot_mtxs)

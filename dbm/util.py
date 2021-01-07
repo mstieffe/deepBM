@@ -87,7 +87,51 @@ def avg_blob(grid, res=64, width=200, sigma=100.0, device=None):
     coords = torch.stack((X, Y, Z), dim=2)
     return coords
 
+def rand_rot_mtx(align):
+    # rotation axis
+    if align:
+        v_rot = np.array([0.0, 0.0, 1.0])
+    else:
+        phi = np.random.uniform(0, np.pi * 2)
+        costheta = np.random.uniform(-1, 1)
+        theta = np.arccos(costheta)
+        x = np.sin(theta) * np.cos(phi)
+        y = np.sin(theta) * np.sin(phi)
+        z = np.cos(theta)
+        v_rot = np.array([x, y, z])
 
+    # rotation angle
+    theta = np.random.uniform(0, np.pi * 2)
+
+    # rotation matrix
+    a = math.cos(theta / 2.0)
+    b, c, d = -v_rot * math.sin(theta / 2.0)
+    aa, bb, cc, dd = a * a, b * b, c * c, d * d
+    bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
+    rot_mat = np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
+                        [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
+                        [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
+
+    return rot_mat
+
+def rot_mtx_batch(bs):
+    rot_mtxs = []
+
+    v_rot = np.array([0.0, 0.0, 1.0])
+    for n in range(0, bs):
+        theta = np.pi * 2 * n / bs
+        # rotation matrix
+        a = math.cos(theta / 2.0)
+        b, c, d = -v_rot * math.sin(theta / 2.0)
+        aa, bb, cc, dd = a * a, b * b, c * c, d * d
+        bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
+        rot_mat = np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
+                            [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
+                            [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
+        rot_mtxs.append(rot_mat)
+    return np.array(rot_mtxs)
+
+"""
 def rand_rotation_matrix(deflection=1.0, randnums=None):
     if randnums is None:
         randnums = np.random.uniform(size=(3,))
@@ -116,7 +160,7 @@ def rand_rotation_matrix(deflection=1.0, randnums=None):
 
     M = (np.outer(V, V) - np.eye(3)).dot(R)
     return M
-
+"""
 
 def summary(model, log):
     """ Copied and modified from https://github.com/pytorch/pytorch/issues/2001 """

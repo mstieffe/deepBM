@@ -27,6 +27,8 @@ class Universe():
 
         start = timer()
 
+        self.name = path_dict['file_name']
+
         #parameters
         self.cfg = cfg
         self.aug = int(cfg.getboolean('universe', 'aug'))
@@ -128,8 +130,6 @@ class Universe():
         self.energy = Energy(self.tops, self.box)
 
         self.kick_atoms()
-
-        print("jasda")
 
 
     def gen_bead_seq(self, train=False):

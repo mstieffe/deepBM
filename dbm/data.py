@@ -71,7 +71,7 @@ class Data():
             aa_dir = path / "aa"
             for cg_path in cg_dir.glob('*.gro'):
                 aa_path = aa_dir / cg_path.name
-                path_dict = {'dir': path, 'cg_path': cg_path}
+                path_dict = {'dir': path, 'cg_path': cg_path, 'file_name': cg_path.name}
                 if aa_path.exists():
                     path_dict['aa_path'] = aa_path
                 else:
