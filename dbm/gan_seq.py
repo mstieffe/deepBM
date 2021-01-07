@@ -655,7 +655,7 @@ class GAN_SEQ():
                 for d in data_gen:
                     with torch.no_grad():
 
-                        torch.cuda.sychronize()
+                        torch.cuda.synchronize()
                         start2 = timer()
                         atom_grid = voxelize_gauss(np.matmul(d['aa_pos'], rot_mtxs), sigma, grid)
                         bead_grid = voxelize_gauss(np.matmul(d['cg_pos'], rot_mtxs), sigma, grid)
@@ -669,18 +669,18 @@ class GAN_SEQ():
                         energy_ndx = self.repeat(self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])))
 
                         print(energy_ndx[0].size())
-                        torch.cuda.sychronize()
+                        torch.cuda.synchronize()
 
                         print("prep: ", timer()-start2)
 
                         new_coords, energies = self.predict(elems, initial, energy_ndx)
-                        torch.cuda.sychronize()
+                        torch.cuda.synchronize()
 
                         print("predict: ", timer()-start2)
 
                         new_coords = np.squeeze(new_coords)
                         energies = np.squeeze(energies)
-                        torch.cuda.sychronize()
+                        torch.cuda.synchronize()
 
                         print("squeeze: ", timer()-start2)
 
@@ -689,7 +689,7 @@ class GAN_SEQ():
                         print(new_coords.shape)
                         print(ndx)
                         new_coords = new_coords[ndx, :, :].detach().cpu().numpy()
-                        torch.cuda.sychronize()
+                        torch.cuda.synchronize()
 
                         print("detach: ", timer()-start2)
 
