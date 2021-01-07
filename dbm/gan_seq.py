@@ -653,49 +653,51 @@ class GAN_SEQ():
                 start = timer()
 
                 for d in data_gen:
-                    start2 = timer()
-                    atom_grid = voxelize_gauss(np.matmul(d['aa_pos'], rot_mtxs), sigma, grid)
-                    bead_grid = voxelize_gauss(np.matmul(d['cg_pos'], rot_mtxs), sigma, grid)
+                    with torch.no_grad():
 
-                    cg_features = d['cg_feat'][None, :, :, None, None, None] * bead_grid[:, :, None, :, :, :]
-                    # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
-                    cg_features = np.sum(cg_features, 1)
+                        start2 = timer()
+                        atom_grid = voxelize_gauss(np.matmul(d['aa_pos'], rot_mtxs), sigma, grid)
+                        bead_grid = voxelize_gauss(np.matmul(d['cg_pos'], rot_mtxs), sigma, grid)
 
-                    elems = self.transpose(self.insert_dim(self.to_tensor((d['target_type'], d['aa_feat'], d['repl']))))
-                    initial = self.to_tensor((atom_grid, cg_features))
-                    energy_ndx = self.repeat(self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])))
+                        cg_features = d['cg_feat'][None, :, :, None, None, None] * bead_grid[:, :, None, :, :, :]
+                        # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
+                        cg_features = np.sum(cg_features, 1)
 
-                    print(energy_ndx[0].size())
+                        elems = self.transpose(self.insert_dim(self.to_tensor((d['target_type'], d['aa_feat'], d['repl']))))
+                        initial = self.to_tensor((atom_grid, cg_features))
+                        energy_ndx = self.repeat(self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])))
 
-                    print("prep: ", timer()-start2)
+                        print(energy_ndx[0].size())
 
-                    new_coords, energies = self.predict(elems, initial, energy_ndx)
+                        print("prep: ", timer()-start2)
 
-                    print("predict: ", timer()-start2)
+                        new_coords, energies = self.predict(elems, initial, energy_ndx)
 
-                    new_coords = np.squeeze(new_coords)
-                    energies = np.squeeze(energies)
-                    print("squeeze: ", timer()-start2)
+                        print("predict: ", timer()-start2)
 
-                    ndx = energies.argmin()
-                    print("argmin: ", timer()-start2)
-                    print(new_coords.shape)
-                    print(ndx)
-                    #new_coords = new_coords[ndx, :, :].detach().cpu().numpy()
-                    new_coords = new_coords[ndx, :, :]
-                    print("select: ", timer()-start2)
+                        new_coords = np.squeeze(new_coords)
+                        energies = np.squeeze(energies)
+                        print("squeeze: ", timer()-start2)
 
-                    #new_coords = new_coords.detach().cpu().numpy()
+                        ndx = energies.argmin()
+                        print("argmin: ", timer()-start2)
+                        print(new_coords.shape)
+                        print(ndx)
+                        #new_coords = new_coords[ndx, :, :].detach().cpu().numpy()
+                        new_coords = new_coords[ndx, :, :]
+                        print("select: ", timer()-start2)
 
-                    print("detach: ", timer()-start2)
+                        #new_coords = new_coords.detach().cpu().numpy()
 
-                    new_coords = np.dot(new_coords, rot_mtxs[ndx].T)
-                    print("find rot: ", timer()-start2)
-                    for c, a in zip(new_coords, d['atom_seq']):
-                        a.pos = d['loc_env'].rot_back(c)
-                    print("insert: ", timer()-start2)
+                        print("detach: ", timer()-start2)
+    
+                        new_coords = np.dot(new_coords, rot_mtxs[ndx].T)
+                        print("find rot: ", timer()-start2)
+                        for c, a in zip(new_coords, d['atom_seq']):
+                            a.pos = d['loc_env'].rot_back(c)
+                        print("insert: ", timer()-start2)
 
-                print(timer()-start)
+                    print(timer()-start)
             #reset atom positions
             for sample in self.data.samples_val:
                 sample.write_gro_file(samples_dir / sample.name + str(self.step) + ".gro")
