@@ -604,9 +604,11 @@ class GAN_SEQ():
             device=self.device,
         )
 
+        print(aa_grid.size())
         b_energy, a_energy, d_energy, l_energy = self.get_energies_from_grid(aa_grid, energy_ndx)
-
+        print(b_energy.size())
         energy = b_energy + a_energy + d_energy + l_energy
+        print(energy.size())
 
         generated_atoms_coords = generated_atoms_coords.detach().cpu().numpy()
         energy = energy.detach().cpu().numpy()
