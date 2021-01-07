@@ -607,8 +607,8 @@ class GAN_SEQ():
             device=self.device,
         )
 
-        #b_energy, a_energy, d_energy, l_energy = self.get_energies_from_grid(aa_grid, energy_ndx)
-        #energy = b_energy + a_energy + d_energy + l_energy
+        b_energy, a_energy, d_energy, l_energy = self.get_energies_from_grid(aa_grid, energy_ndx)
+        energy = b_energy + a_energy + d_energy + l_energy
 
         #generated_atoms_coords = generated_atoms_coords.detach().cpu().numpy()
         #energy = energy.detach().cpu().numpy()
@@ -619,7 +619,7 @@ class GAN_SEQ():
         #generated_atoms_coords = generated_atoms_coords.to(self.device_cpu)
         #energy = energy.to(self.device_cpu)
 
-        return generated_atoms_coords#, energy
+        return generated_atoms_coords, energy
 
     def validate(self, samples_dir=None):
 
@@ -663,6 +663,8 @@ class GAN_SEQ():
                         cg_features = d['cg_feat'][None, :, :, None, None, None] * bead_grid[:, :, None, :, :, :]
                         # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
                         cg_features = np.sum(cg_features, 1)
+                        torch.cuda.synchronize()
+                        print("prep1: ", timer()-start2)
 
                         elems = self.transpose(self.insert_dim(self.to_tensor((d['target_type'], d['aa_feat'], d['repl']))))
                         initial = self.to_tensor((atom_grid, cg_features))
