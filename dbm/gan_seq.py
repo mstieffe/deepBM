@@ -693,8 +693,8 @@ class GAN_SEQ():
 
                         new_coords = np.dot(new_coords, rot_mtxs[ndx].T)
                         print("find rot: ", timer()-start2)
-                        for c, a in zip(new_coords, d['atom_seq']):
-                            a.pos = d['loc_env'].rot_back(c)
+                        #for c, a in zip(new_coords, d['atom_seq']):
+                        #    a.pos = d['loc_env'].rot_back(c)
                         print("insert: ", timer()-start2)
 
                     print(timer()-start)
