@@ -635,6 +635,7 @@ class GAN_SEQ():
         sigma = self.cfg.getfloat('grid', 'sigma')
         grid = make_grid_np(delta_s, resolution)
 
+        grid_torch = torch.from_numpy(grid).to(self.device)
         rot_mtxs = rot_mtx_batch(self.bs)
 
         data_generators = []
@@ -657,12 +658,22 @@ class GAN_SEQ():
 
                         torch.cuda.synchronize()
                         start2 = timer()
-                        atom_grid = voxelize_gauss(np.matmul(d['aa_pos'], rot_mtxs), sigma, grid)
-                        bead_grid = voxelize_gauss(np.matmul(d['cg_pos'], rot_mtxs), sigma, grid)
+                        coords_aa = torch.from_numpy(np.matmul(d['aa_pos'], rot_mtxs)).to(self.device)
+                        coords_cg = torch.from_numpy(np.matmul(d['cg_pos'], rot_mtxs)).to(self.device)
 
-                        cg_features = d['cg_feat'][None, :, :, None, None, None] * bead_grid[:, :, None, :, :, :]
+                        atom_grid = np.exp(-1.0 * np.sum((grid_torch - coords_aa) * (grid_torch - coords_aa), axis=2) / sigma)
+                        bead_grid = np.exp(-1.0 * np.sum((grid_torch - coords_cg) * (grid_torch - coords_cg), axis=2) / sigma)
+
+                        #atom_grid = voxelize_gauss(np.matmul(d['aa_pos'], rot_mtxs), sigma, grid)
+                        #bead_grid = voxelize_gauss(np.matmul(d['cg_pos'], rot_mtxs), sigma, grid)
+
+                        cg_features = torch.from_numpy(d['cg_feat'][None, :, :, None, None, None]).to(self.device) * bead_grid[:, :, None, :, :, :]
+
+                        #cg_features = d['cg_feat'][None, :, :, None, None, None] * bead_grid[:, :, None, :, :, :]
                         # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
-                        cg_features = np.sum(cg_features, 1)
+                        #cg_features = np.sum(cg_features, 1)
+                        cg_features = torch.sum(cg_features, 1)
+
                         torch.cuda.synchronize()
                         print("prep1: ", timer()-start2)
 
