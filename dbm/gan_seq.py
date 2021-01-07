@@ -663,6 +663,8 @@ class GAN_SEQ():
                     initial = self.to_tensor((atom_grid, cg_features))
                     energy_ndx = self.repeat(self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])))
 
+                    print(energy_ndx[0].size())
+
                     print("prep: ", timer()-start2)
 
                     new_coords, energies = self.predict(elems, initial, energy_ndx)
