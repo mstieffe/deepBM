@@ -607,8 +607,8 @@ class GAN_SEQ():
             device=self.device,
         )
 
-        b_energy, a_energy, d_energy, l_energy = self.get_energies_from_grid(aa_grid, energy_ndx)
-        energy = b_energy + a_energy + d_energy + l_energy
+        #b_energy, a_energy, d_energy, l_energy = self.get_energies_from_grid(aa_grid, energy_ndx)
+        #energy = b_energy + a_energy + d_energy + l_energy
 
         #generated_atoms_coords = generated_atoms_coords.detach().cpu().numpy()
         #energy = energy.detach().cpu().numpy()
@@ -619,7 +619,7 @@ class GAN_SEQ():
         #generated_atoms_coords = generated_atoms_coords.to(self.device_cpu)
         #energy = energy.to(self.device_cpu)
 
-        return generated_atoms_coords, energy
+        return generated_atoms_coords#, energy
 
     def validate(self, samples_dir=None):
 
