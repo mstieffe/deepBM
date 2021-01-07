@@ -686,7 +686,7 @@ class GAN_SEQ():
                         new_coords = new_coords[ndx, :, :].detach().cpu().numpy()
                         print("detach: ", timer()-start2)
 
-                        new_coords = new_coords[ndx, :, :]
+                        #new_coords = new_coords[ndx, :, :]
                         print("select: ", timer()-start2)
 
                         #new_coords = new_coords.detach().cpu().numpy()
