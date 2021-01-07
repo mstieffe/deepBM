@@ -320,6 +320,7 @@ class GAN_SEQ():
             sigma=self.cfg.getfloat('grid', 'sigma'),
             device=self.device,
         )
+        print(coords.size())
         bond_ndx, angle_ndx, dih_ndx, lj_ndx = energy_ndx
         b_energy = self.energy.bond(coords, bond_ndx)
         a_energy = self.energy.angle(coords, angle_ndx)
