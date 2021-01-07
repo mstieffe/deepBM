@@ -660,11 +660,15 @@ class GAN_SEQ():
                     print("predict: ", timer()-start2)
 
                     new_coords = np.squeeze(new_coords)
-
                     energies = np.squeeze(energies)
+                    print("squeeze: ", timer()-start2)
+
                     ndx = energies.argmin()
+                    print("argmin: ", timer()-start2)
 
                     new_coords = new_coords[ndx, :, :].detach().cpu().numpy()
+                    print("detach: ", timer()-start2)
+
                     new_coords = np.dot(new_coords, rot_mtxs[ndx].T)
                     print("find rot: ", timer()-start2)
                     print(new_coords.shape)
