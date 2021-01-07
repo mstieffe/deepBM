@@ -326,7 +326,7 @@ class GAN_SEQ():
         a_energy = self.energy.angle(coords, angle_ndx)
         d_energy = self.energy.dih(coords, dih_ndx)
         l_energy = self.energy.lj(coords, lj_ndx)
-
+        print(b_energy.size())
         return b_energy, a_energy, d_energy, l_energy
 
     def get_energies_from_coords(self, coords, energy_ndx):
