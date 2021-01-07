@@ -105,6 +105,7 @@ class GAN_SEQ():
     def __init__(self, device, cfg):
 
         self.device = device
+        self.device_cpu = torch.device("cpu")
         self.cfg = cfg
 
         self.bs = self.cfg.getint('training', 'batchsize')
@@ -612,8 +613,11 @@ class GAN_SEQ():
         #generated_atoms_coords = generated_atoms_coords.detach().cpu().numpy()
         #energy = energy.detach().cpu().numpy()
 
-        generated_atoms_coords = generated_atoms_coords.data.cpu().numpy()
-        energy = energy.data.cpu().numpy()
+        #generated_atoms_coords = generated_atoms_coords.data.cpu().numpy()
+        #energy = energy.data.cpu().numpy()
+
+        generated_atoms_coords = generated_atoms_coords.to(self.device_cpu)
+        energy = energy.to(self.device_cpu)
 
         return generated_atoms_coords, energy
 
@@ -640,7 +644,6 @@ class GAN_SEQ():
         for m in range(self.n_gibbs):
             data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=True, train=False, rand_rot=False)))
             data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=True, train=False, rand_rot=False)))
-
 
         try:
             self.generator.eval()
