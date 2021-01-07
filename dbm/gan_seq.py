@@ -320,13 +320,11 @@ class GAN_SEQ():
             sigma=self.cfg.getfloat('grid', 'sigma'),
             device=self.device,
         )
-        print(coords.size())
         bond_ndx, angle_ndx, dih_ndx, lj_ndx = energy_ndx
         b_energy = self.energy.bond(coords, bond_ndx)
         a_energy = self.energy.angle(coords, angle_ndx)
         d_energy = self.energy.dih(coords, dih_ndx)
         l_energy = self.energy.lj(coords, lj_ndx)
-        print(b_energy.size())
         return b_energy, a_energy, d_energy, l_energy
 
     def get_energies_from_coords(self, coords, energy_ndx):
@@ -660,7 +658,7 @@ class GAN_SEQ():
 
                     elems = self.transpose(self.insert_dim(self.to_tensor((d['target_type'], d['aa_feat'], d['repl']))))
                     initial = self.to_tensor((atom_grid, cg_features))
-                    energy_ndx = self.insert_dim(self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])))
+                    energy_ndx = torch.cat(self.bs*[(self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])))])
 
                     print("prep: ", timer()-start2)
 
