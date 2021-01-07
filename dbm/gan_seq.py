@@ -572,6 +572,9 @@ class GAN_SEQ():
     def insert_dim(self, t):
         return tuple(x[None, :] for x in t)
 
+    def repeat(self, t):
+        return tuple(torch.cat(self.bs*[x]) for x in t)
+
     def predict(self, elems, initial, energy_ndx):
 
         aa_grid, cg_features = initial
@@ -658,7 +661,7 @@ class GAN_SEQ():
 
                     elems = self.transpose(self.insert_dim(self.to_tensor((d['target_type'], d['aa_feat'], d['repl']))))
                     initial = self.to_tensor((atom_grid, cg_features))
-                    energy_ndx = torch.cat(self.bs*[(self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])))])
+                    energy_ndx = self.repeat(self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])))
 
                     print("prep: ", timer()-start2)
 
