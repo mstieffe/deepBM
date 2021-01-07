@@ -658,8 +658,11 @@ class GAN_SEQ():
 
                         torch.cuda.synchronize()
                         start2 = timer()
+                        
                         coords_aa = torch.from_numpy(np.matmul(d['aa_pos'], rot_mtxs)).to(self.device)
+                        coords_aa = coords_aa[..., None, None, None]
                         coords_cg = torch.from_numpy(np.matmul(d['cg_pos'], rot_mtxs)).to(self.device)
+                        coords_cg = coords_cg[..., None, None, None]
 
                         atom_grid = np.exp(-1.0 * np.sum((grid_torch - coords_aa) * (grid_torch - coords_aa), axis=2) / sigma)
                         bead_grid = np.exp(-1.0 * np.sum((grid_torch - coords_cg) * (grid_torch - coords_cg), axis=2) / sigma)
