@@ -522,6 +522,8 @@ class GAN_SEQ():
 
         return c_loss.detach().cpu().numpy()
 
+    def
+
     def train_step_gen(self, elems, initial, energy_ndx):
 
         aa_grid, cg_features = initial
@@ -663,8 +665,8 @@ class GAN_SEQ():
         generated_atoms = []
         for target_type, aa_featvec, repl in zip(*elems):
             #prepare input for generator
-            print(aa_featvec.size())
-            print(aa_grid.size())
+            #print(aa_featvec.size())
+            #print(aa_grid.size())
             fake_aa_features = self.featurize(aa_grid, aa_featvec)
             c_fake = fake_aa_features + cg_features
             target_type = target_type.repeat(self.bs, 1)
@@ -680,6 +682,9 @@ class GAN_SEQ():
             generated_atoms.append(fake_atom)
 
             #update aa grids
+            print(repl.size())
+            print(aa_grid.size())
+            print(fake_atom.size())
             aa_grid = torch.where(repl[:,:,None,None,None], aa_grid, fake_atom)
 
         generated_atoms = torch.stack(generated_atoms, dim = 1)
