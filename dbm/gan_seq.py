@@ -665,8 +665,8 @@ class GAN_SEQ():
 
                     print("predict: ", timer()-start2)
 
-                    print(new_coords.size())
-                    print(energies.size())
+                    print(new_coords.shape)
+                    print(energies.shape)
 
                     new_coords = np.squeeze(new_coords)
                     energies = np.squeeze(energies)
@@ -674,7 +674,7 @@ class GAN_SEQ():
 
                     ndx = energies.argmin()
                     print("argmin: ", timer()-start2)
-                    print(new_coords.size())
+                    print(new_coords.shape)
                     print(ndx)
                     #new_coords = new_coords[ndx, :, :].detach().cpu().numpy()
                     new_coords = new_coords[ndx, :, :]
