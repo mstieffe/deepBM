@@ -606,7 +606,13 @@ class GAN_SEQ():
 
         b_energy, a_energy, d_energy, l_energy = self.get_energies_from_grid(aa_grid, energy_ndx)
 
-        return generated_atoms_coords, b_energy + a_energy + d_energy + l_energy
+        energy = b_energy + a_energy + d_energy + l_energy
+
+        generated_atoms_coords = generated_atoms_coords.detach().cpu().numpy()
+        energy = energy.detach().cpu().numpy()
+
+
+        return generated_atoms_coords, energy
 
     def validate(self, samples_dir=None):
 
@@ -659,6 +665,9 @@ class GAN_SEQ():
 
                     print("predict: ", timer()-start2)
 
+                    print(new_coords.size())
+                    print(energies.size())
+
                     new_coords = np.squeeze(new_coords)
                     energies = np.squeeze(energies)
                     print("squeeze: ", timer()-start2)
@@ -671,7 +680,7 @@ class GAN_SEQ():
                     new_coords = new_coords[ndx, :, :]
                     print("select: ", timer()-start2)
 
-                    new_coords = new_coords.detach().cpu().numpy()
+                    #new_coords = new_coords.detach().cpu().numpy()
 
                     print("detach: ", timer()-start2)
 
