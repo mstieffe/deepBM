@@ -664,8 +664,8 @@ class GAN_SEQ():
                         coords_cg = torch.from_numpy(np.matmul(d['cg_pos'], rot_mtxs)).to(self.device)
                         coords_cg = coords_cg[..., None, None, None]
 
-                        atom_grid = torch.exp(-1.0 * torch.sum((grid_torch - coords_aa) * (grid_torch - coords_aa), axis=2) / sigma)
-                        bead_grid = torch.exp(-1.0 * torch.sum((grid_torch - coords_cg) * (grid_torch - coords_cg), axis=2) / sigma)
+                        atom_grid = torch.exp(-1.0 * torch.sum((grid_torch - coords_aa) * (grid_torch - coords_aa), axis=2) / sigma).float()
+                        bead_grid = torch.exp(-1.0 * torch.sum((grid_torch - coords_cg) * (grid_torch - coords_cg), axis=2) / sigma).float()
 
                         #atom_grid = voxelize_gauss(np.matmul(d['aa_pos'], rot_mtxs), sigma, grid)
                         #bead_grid = voxelize_gauss(np.matmul(d['cg_pos'], rot_mtxs), sigma, grid)
