@@ -650,6 +650,7 @@ class GAN_SEQ():
             self.critic.eval()
 
             for data_gen in data_generators:
+                torch.cuda.synchronize()
                 start = timer()
 
                 for d in data_gen:
