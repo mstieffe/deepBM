@@ -522,7 +522,6 @@ class GAN_SEQ():
 
         return c_loss.detach().cpu().numpy()
 
-    def
 
     def train_step_gen(self, elems, initial, energy_ndx):
 
