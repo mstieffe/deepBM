@@ -681,7 +681,9 @@ class GAN_SEQ():
                         print("prep1: ", timer()-start2)
 
                         elems = self.transpose(self.insert_dim(self.to_tensor((d['target_type'], d['aa_feat'], d['repl']))))
-                        initial = self.to_tensor((atom_grid, cg_features))
+                        #initial = self.to_tensor((atom_grid, cg_features))
+                        initial = (atom_grid, cg_features)
+
                         energy_ndx = self.repeat(self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])))
 
                         print(energy_ndx[0].size())
