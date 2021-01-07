@@ -606,15 +606,14 @@ class GAN_SEQ():
             device=self.device,
         )
 
-        print(aa_grid.size())
         b_energy, a_energy, d_energy, l_energy = self.get_energies_from_grid(aa_grid, energy_ndx)
-        print(b_energy.size())
         energy = b_energy + a_energy + d_energy + l_energy
-        print(energy.size())
 
-        generated_atoms_coords = generated_atoms_coords.detach().cpu().numpy()
-        energy = energy.detach().cpu().numpy()
+        #generated_atoms_coords = generated_atoms_coords.detach().cpu().numpy()
+        #energy = energy.detach().cpu().numpy()
 
+        generated_atoms_coords = generated_atoms_coords.data.numpy()
+        energy = energy.data.numpy()
 
         return generated_atoms_coords, energy
 
@@ -671,9 +670,6 @@ class GAN_SEQ():
 
                     print("predict: ", timer()-start2)
 
-                    print(new_coords.shape)
-                    print(energies.shape)
-
                     new_coords = np.squeeze(new_coords)
                     energies = np.squeeze(energies)
                     print("squeeze: ", timer()-start2)
@@ -692,7 +688,6 @@ class GAN_SEQ():
 
                     new_coords = np.dot(new_coords, rot_mtxs[ndx].T)
                     print("find rot: ", timer()-start2)
-                    print(new_coords.shape)
                     for c, a in zip(new_coords, d['atom_seq']):
                         a.pos = d['loc_env'].rot_back(c)
                     print("insert: ", timer()-start2)
