@@ -665,7 +665,8 @@ class GAN_SEQ():
 
                     ndx = energies.argmin()
                     print("argmin: ", timer()-start2)
-
+                    print(new_coords.size())
+                    print(ndx)
                     #new_coords = new_coords[ndx, :, :].detach().cpu().numpy()
                     new_coords = new_coords[ndx, :, :]
                     print("select: ", timer()-start2)
