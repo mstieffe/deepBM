@@ -43,10 +43,15 @@ class Energy_torch():
         a_0 = param[:, :, 0]
         f_c = param[:, :, 1]
 
+        print(ndx1.size())
+        print(atoms.size())
+
         #test = atoms[ndx1, :]
         pos1 = torch.stack([a[n] for n, a in zip(ndx1, atoms)])
         pos2 = torch.stack([a[n] for n, a in zip(ndx2, atoms)])
 
+        print(pos1.size())
+        print("afasfa")
         #pos1 = torch.gather(atoms, 1, ndx1) # (BS, n_bonds, 3)
         #pos2 = torch.gather(atoms, 1, ndx2)
 
