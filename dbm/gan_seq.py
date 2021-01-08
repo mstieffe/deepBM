@@ -640,7 +640,7 @@ class GAN_SEQ():
         #grid = make_grid_np(delta_s, resolution)
 
         grid = torch.from_numpy(make_grid_np(delta_s, resolution)).to(self.device)
-        rot_mtxs = torch.from_numpy(rot_mtx_batch(self.bs)).to(self.device)
+        rot_mtxs = torch.from_numpy(rot_mtx_batch(self.bs)).to(self.device).float()
 
         data_generators = []
         data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False)))
