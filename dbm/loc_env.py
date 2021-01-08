@@ -166,8 +166,12 @@ class Top():
             if len(self.filter_predecessors(lj.atoms)) == 1:
                 ljs['intra_predecessor'].append(lj)
         ljs['inter'] = self.ff.make_ljs(self.atom, self.loc_env.atoms_inter)
+        ljs['inter_heavy'] = []
+        for lj in ljs['inter']:
+            if len(self.filter_heavy(lj.atoms)) == 2:
+                ljs['inter_heavy'].append(lj)
         ljs['all'] = ljs['intra'] + ljs['inter']
-        ljs['heavy'] = ljs['intra_heavy'] + ljs['inter']
+        ljs['heavy'] = ljs['intra_heavy'] + ljs['inter_heavy']
         ljs['predecessor'] = ljs['intra_predecessor'] + ljs['inter']
 
 

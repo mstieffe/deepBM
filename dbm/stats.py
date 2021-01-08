@@ -214,7 +214,7 @@ class Stats():
             for mol in sample.mols:
                 ljs = [sample.tops[a].ljs[key] for a in mol.atoms]
                 ljs = list(set(itertools.chain.from_iterable(ljs)))
-                energy = sample.energy.lj_pot(ljs)
+                energy = sample.energy.lj_pot(ljs, ref=ref)
                 energies.append(energy)
         print(energies)
 
