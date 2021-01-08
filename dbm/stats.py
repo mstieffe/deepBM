@@ -216,7 +216,6 @@ class Stats():
                 ljs = list(set(itertools.chain.from_iterable(ljs)))
                 energy = sample.energy.lj_pot(ljs, ref=ref)
                 energies.append(energy)
-        print(energies)
 
         dstr = self.make_histo(np.array(energies), n_bins=n_bins, low=low, high=high)
 

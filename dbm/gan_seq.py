@@ -686,7 +686,7 @@ class GAN_SEQ():
                             a.pos = d['loc_env'].rot_back(c)
 
                 print(timer()-start)
-            stats.evaluate(train=False, subdir=self.epoch)
+            stats.evaluate(train=False, subdir=str(self.epoch))
             #reset atom positions
             for sample in self.data.samples_val:
                 sample.write_gro_file(samples_dir / (sample.name + str(self.step) + ".gro"))
