@@ -54,6 +54,7 @@ class Data():
 
         #find maximums for padding
         self.max = self.get_max_dict()
+        print("max atoms: ", max['atoms_loc_env'])
 
         print("Successfully created universe! This took ", timer()-start, "secs")
 
