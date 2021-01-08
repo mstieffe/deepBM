@@ -109,7 +109,7 @@ class Stats():
                     pos2 += [bond.atoms[1].pos + bond.atoms[1].center for bond in mol.bonds if
                              bond.type.name == bond_name]
             if pos1:
-                dis += list(sample.box.pbc_diff_vec_batch(np.array(pos1) - np.array(pos2)))
+                dis += list(sample.box.diff_vec_batch(np.array(pos1) - np.array(pos2)))
         dis = np.sqrt(np.sum(np.square(dis), axis=-1))
 
         dstr = self.make_histo(dis, n_bins=n_bins, low=low, high=high)
@@ -139,8 +139,8 @@ class Stats():
                     pos3 += [angle.atoms[2].pos + angle.atoms[2].center for angle in mol.angles if
                              angle.type.name == angle_name]
             if pos1 != []:
-                vec1 += list(sample.box.pbc_diff_vec_batch(np.array(pos1) - np.array(pos2)))
-                vec2 += list(sample.box.pbc_diff_vec_batch(np.array(pos3) - np.array(pos2)))
+                vec1 += list(sample.box.diff_vec_batch(np.array(pos1) - np.array(pos2)))
+                vec2 += list(sample.box.diff_vec_batch(np.array(pos3) - np.array(pos2)))
 
         norm1 = np.square(vec1)
         norm1 = np.sum(norm1, axis=-1)
@@ -183,9 +183,9 @@ class Stats():
                     pos3 += [dih.atoms[2].pos + dih.atoms[2].center for dih in mol.dihs if dih.type.name == dih_name]
                     pos4 += [dih.atoms[3].pos + dih.atoms[3].center for dih in mol.dihs if dih.type.name == dih_name]
             if pos1 != []:
-                vec1 = sample.box.pbc_diff_vec_batch(np.array(pos2) - np.array(pos1))
-                vec2 = sample.box.pbc_diff_vec_batch(np.array(pos2) - np.array(pos3))
-                vec3 = sample.box.pbc_diff_vec_batch(np.array(pos4) - np.array(pos3))
+                vec1 = sample.box.diff_vec_batch(np.array(pos2) - np.array(pos1))
+                vec2 = sample.box.diff_vec_batch(np.array(pos2) - np.array(pos3))
+                vec3 = sample.box.diff_vec_batch(np.array(pos4) - np.array(pos3))
                 plane1 += list(np.cross(vec1, vec2))
                 plane2 += list(np.cross(vec2, vec3))
 
@@ -238,14 +238,14 @@ class Stats():
             n_atoms = len(atoms)
 
             if ref:
-                x = np.array([sample.box.pbc_in_box(a.ref_pos + a.center) for a in atoms])
+                x = np.array([sample.box.move_inside(a.ref_pos + a.center) for a in atoms])
             else:
-                x = np.array([sample.box.pbc_in_box(a.pos + a.center) for a in atoms])
+                x = np.array([sample.box.move_inside(a.pos + a.center) for a in atoms])
 
             if atoms != []:
                 d = x[:, np.newaxis, :] - x[np.newaxis, :, :]
                 d = np.reshape(d, (n_atoms*n_atoms, 3))
-                d = sample.box.pbc_diff_vec_batch(d)
+                d = sample.box.diff_vec_batch(d)
                 d = np.reshape(d, (n_atoms, n_atoms, 3))
                 d = np.sqrt(np.sum(d ** 2, axis=-1))
 
