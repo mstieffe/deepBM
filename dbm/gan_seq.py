@@ -680,7 +680,9 @@ class GAN_SEQ():
                         torch.cuda.synchronize()
                         print("prep1: ", timer()-start2)
 
-                        elems = self.transpose(self.insert_dim(self.to_tensor((d['target_type'], d['aa_feat'], d['repl']))))
+                        seq_len = len(d['atom_seq'])
+                        elems = (d['target_type'][:seq_len], d['aa_feat'][:seq_len], d['repl'][:seq_len])
+                        elems = self.transpose(self.insert_dim(self.to_tensor(elems)))
                         #initial = self.to_tensor((atom_grid, cg_features))
                         initial = (atom_grid, cg_features)
 
