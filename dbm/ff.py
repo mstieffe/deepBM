@@ -432,7 +432,7 @@ class Energy():
         c6_term = np.power(c6_term, 6)
         c12_term = np.power(c6_term, 2)
         en = np.subtract(c12_term, c6_term)
-        en = np.multiply(en, 4 * epsilon)
+        en = np.multiply(en, 4 * np.array(epsilon))
 
         if shift:
             c6_term_cut = np.divide(sigma, cutoff)
