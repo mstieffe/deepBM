@@ -576,6 +576,10 @@ class GAN_SEQ():
     def repeat(self, t):
         return tuple(torch.stack(self.bs*[x]) for x in t)
 
+    def to_voxel(self, coords, grid, sigma):
+        coords = coords[..., None, None, None]
+        return torch.exp(-1.0 * torch.sum((grid - coords) * (grid - coords), axis=2) / sigma).float()
+
     def predict(self, elems, initial, energy_ndx):
 
         aa_grid, cg_features = initial
@@ -633,10 +637,10 @@ class GAN_SEQ():
         resolution = self.cfg.getint('grid', 'resolution')
         delta_s = self.cfg.getfloat('grid', 'length') / self.cfg.getint('grid', 'resolution')
         sigma = self.cfg.getfloat('grid', 'sigma')
-        grid = make_grid_np(delta_s, resolution)
+        #grid = make_grid_np(delta_s, resolution)
 
-        grid_torch = torch.from_numpy(grid).to(self.device)
-        rot_mtxs = rot_mtx_batch(self.bs)
+        grid = torch.from_numpy(make_grid_np(delta_s, resolution)).to(self.device)
+        rot_mtxs = torch.from_numpy(rot_mtx_batch(self.bs)).to(self.device)
 
         data_generators = []
         data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False)))
@@ -659,23 +663,30 @@ class GAN_SEQ():
                         torch.cuda.synchronize()
                         start2 = timer()
 
-                        coords_aa = torch.from_numpy(np.matmul(d['aa_pos'], rot_mtxs)).to(self.device)
-                        coords_aa = coords_aa[..., None, None, None]
-                        coords_cg = torch.from_numpy(np.matmul(d['cg_pos'], rot_mtxs)).to(self.device)
-                        coords_cg = coords_cg[..., None, None, None]
+                        aa_coords = torch.matmul(torch.from_numpy(d['aa_pos']).to(self.device), rot_mtxs)
+                        cg_coords = torch.matmul(torch.from_numpy(d['cg_pos']).to(self.device), rot_mtxs)
 
-                        atom_grid = torch.exp(-1.0 * torch.sum((grid_torch - coords_aa) * (grid_torch - coords_aa), axis=2) / sigma).float()
-                        bead_grid = torch.exp(-1.0 * torch.sum((grid_torch - coords_cg) * (grid_torch - coords_cg), axis=2) / sigma).float()
+                        aa_grid = self.to_voxel(aa_coords, grid, sigma)
+                        cg_grid = self.to_voxel(cg_coords, grid, sigma)
+
+                        #coords_aa = torch.from_numpy(torch.matmul(d['aa_pos'], rot_mtxs)).to(self.device)
+                        #coords_aa = coords_aa[..., None, None, None]
+                        #coords_cg = torch.from_numpy(torch.matmul(d['cg_pos'], rot_mtxs)).to(self.device)
+                        #coords_cg = coords_cg[..., None, None, None]
+
+                        #atom_grid = torch.exp(-1.0 * torch.sum((grid_torch - coords_aa) * (grid_torch - coords_aa), axis=2) / sigma).float()
+                        #bead_grid = torch.exp(-1.0 * torch.sum((grid_torch - coords_cg) * (grid_torch - coords_cg), axis=2) / sigma).float()
 
                         #atom_grid = voxelize_gauss(np.matmul(d['aa_pos'], rot_mtxs), sigma, grid)
                         #bead_grid = voxelize_gauss(np.matmul(d['cg_pos'], rot_mtxs), sigma, grid)
 
-                        cg_features = torch.from_numpy(d['cg_feat'][None, :, :, None, None, None]).to(self.device) * bead_grid[:, :, None, :, :, :]
+                        cg_features = torch.from_numpy(d['cg_feat'][None, :, :, None, None, None]).to(self.device) * cg_grid[:, :, None, :, :, :]
+                        cg_features = torch.sum(cg_features, 1)
 
                         #cg_features = d['cg_feat'][None, :, :, None, None, None] * bead_grid[:, :, None, :, :, :]
                         # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
                         #cg_features = np.sum(cg_features, 1)
-                        cg_features = torch.sum(cg_features, 1)
+                        #cg_features = torch.sum(cg_features, 1)
 
                         torch.cuda.synchronize()
                         print("prep1: ", timer()-start2)
@@ -685,9 +696,10 @@ class GAN_SEQ():
                         elems = (d['target_type'], d['aa_feat'], d['repl'])
                         elems = self.transpose(self.insert_dim(self.to_tensor(elems)))
                         #initial = self.to_tensor((atom_grid, cg_features))
-                        initial = (atom_grid, cg_features)
+                        initial = (aa_grid, cg_features)
 
-                        energy_ndx = self.repeat(self.to_tensor((d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])))
+                        energy_ndx = (d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])
+                        energy_ndx = self.repeat(self.to_tensor(energy_ndx))
 
                         print(energy_ndx[0].size())
                         torch.cuda.synchronize()
