@@ -16,7 +16,7 @@ class Stats():
             self.path = Path("./stats/")
         self.path.mkdir(exist_ok=True)
 
-    def evaluate(self, train=False, subdir=None):
+    def evaluate(self, train=False, subdir=None, save_samples=False):
         # evaluate for every folder stored in data
         if train:
             samples_dict = self.data.dict_train
@@ -76,6 +76,10 @@ class Stats():
             plot_dict = {"title": "RDF (carbs)", "xlabel": "r [nm]", "ylabel": "g(r)"}
             rdf_fig.add_plot(bm_rdf, plot_dict, ref_rdf)
             rdf_fig.save()
+
+            if save_samples:
+                for sample in samples:
+                    sample.write_gro_file(p / (sample.name + ".gro"))
 
 
     def make_histo(self, values, n_bins=80, low=0.0, high=0.2):

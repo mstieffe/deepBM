@@ -625,7 +625,7 @@ class GAN_SEQ():
         else:
             samples_dir = self.out.samples_dir
         stats = Stats(self.data, dir= samples_dir / "stats")
-        stats.evaluate(train=False, subdir=str(self.epoch))
+        stats.evaluate(train=False, subdir=str(self.epoch), save_samples=True)
 
         print("Saving samples in {}".format(samples_dir), "...", end='')
 
@@ -686,10 +686,10 @@ class GAN_SEQ():
                             a.pos = d['loc_env'].rot_back(c)
 
                 print(timer()-start)
-            stats.evaluate(train=False, subdir=str(self.epoch))
+            stats.evaluate(train=False, subdir=str(self.epoch), save_samples=True)
             #reset atom positions
             for sample in self.data.samples_val:
-                sample.write_gro_file(samples_dir / (sample.name + str(self.step) + ".gro"))
+                #sample.write_gro_file(samples_dir / (sample.name + str(self.step) + ".gro"))
                 sample.kick_atoms()
 
         finally:
