@@ -22,7 +22,7 @@ class Stats():
             samples_dict = self.data.dict_train
         else:
             samples_dict = self.data.dict_val
-        for name, samples in zip(self.data.samples_dict.keys(), self.data.samples_dict.values()):
+        for name, samples in zip(samples_dict.keys(), samples_dict.values()):
             p = self.path / name
             p.mkdir(exist_ok=True)
             if subdir:
