@@ -663,8 +663,8 @@ class GAN_SEQ():
                         torch.cuda.synchronize()
                         start2 = timer()
 
-                        aa_coords = torch.matmul(torch.from_numpy(d['aa_pos']).to(self.device).float(), rot_mtxs)
-                        cg_coords = torch.matmul(torch.from_numpy(d['cg_pos']).to(self.device).float(), rot_mtxs)
+                        aa_coords = torch.matmul(torch.from_numpy(d['aa_pos']).to(self.device).float(), rot_mtxs.float())
+                        cg_coords = torch.matmul(torch.from_numpy(d['cg_pos']).to(self.device).float(), rot_mtxs.float())
 
                         aa_grid = self.to_voxel(aa_coords, grid, sigma)
                         cg_grid = self.to_voxel(cg_coords, grid, sigma)
