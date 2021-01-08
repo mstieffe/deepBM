@@ -641,6 +641,7 @@ class GAN_SEQ():
 
         grid = torch.from_numpy(make_grid_np(delta_s, resolution)).to(self.device)
         rot_mtxs = torch.from_numpy(rot_mtx_batch(self.bs)).to(self.device)
+        rot_mtxs_transposed = torch.from_numpy(rot_mtx_batch(self.bs, transpose=True)).to(self.device)
 
         data_generators = []
         data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False)))
@@ -721,7 +722,9 @@ class GAN_SEQ():
                         print("argmin: ", timer()-start2)
                         print(new_coords.shape)
                         print(ndx)
-                        new_coords = new_coords[ndx, :, :].detach().cpu().numpy()
+                        new_coords = torch.matmul(new_coords[ndx], rot_mtxs_transposed[ndx])
+                        new_coords = new_coords.detach().cpu().numpy()
+                        #new_coords = new_coords[ndx, :, :].detach().cpu().numpy()
                         torch.cuda.synchronize()
 
                         print("detach: ", timer()-start2)

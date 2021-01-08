@@ -114,7 +114,7 @@ def rand_rot_mtx(align):
 
     return rot_mat
 
-def rot_mtx_batch(bs):
+def rot_mtx_batch(bs, transpose=False):
     rot_mtxs = []
 
     v_rot = np.array([0.0, 0.0, 1.0])
@@ -128,7 +128,10 @@ def rot_mtx_batch(bs):
         rot_mat = np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
                             [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
                             [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
-        rot_mtxs.append(rot_mat)
+        if transpose:
+            rot_mtxs.append(rot_mat.T)
+        else:
+            rot_mtxs.append(rot_mat)
     return np.array(rot_mtxs)
 
 """
