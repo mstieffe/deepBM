@@ -639,12 +639,12 @@ class GAN_SEQ():
         rot_mtxs = rot_mtx_batch(self.bs)
 
         data_generators = []
-        data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False)))
-        data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False)))
+        data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False)))
+        data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False, pad_seq=False)))
 
         for m in range(self.n_gibbs):
-            data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=True, train=False, rand_rot=False)))
-            data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=True, train=False, rand_rot=False)))
+            data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=True, train=False, rand_rot=False, pad_seq=False)))
+            data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=True, train=False, rand_rot=False, pad_seq=False)))
 
         try:
             self.generator.eval()
@@ -680,8 +680,9 @@ class GAN_SEQ():
                         torch.cuda.synchronize()
                         print("prep1: ", timer()-start2)
 
-                        seq_len = len(d['atom_seq'])
-                        elems = (d['target_type'][:seq_len], d['aa_feat'][:seq_len], d['repl'][:seq_len])
+                        #seq_len = len(d['atom_seq'])
+                        #elems = (d['target_type'][:seq_len], d['aa_feat'][:seq_len], d['repl'][:seq_len])
+                        elems = (d['target_type'], d['aa_feat'], d['repl'])
                         elems = self.transpose(self.insert_dim(self.to_tensor(elems)))
                         #initial = self.to_tensor((atom_grid, cg_features))
                         initial = (atom_grid, cg_features)

@@ -3,13 +3,14 @@ import math
 
 class Generator():
 
-    def __init__(self, data, train=False, hydrogens=False, gibbs=False, rand_rot=False):
+    def __init__(self, data, train=False, hydrogens=False, gibbs=False, rand_rot=False, pad_seq=True):
 
         self.data = data
         self.train = train
         self.hydrogens = hydrogens
         self.gibbs = gibbs
         self.rand_rot = rand_rot
+        self.pad_seq = pad_seq
 
         if train:
             self.samples = self.data.samples_train
@@ -85,11 +86,12 @@ class Generator():
                 d["ljs_ndx"] = np.array(self.pad_energy_ndx(ljs_ndx, self.data.max['ljs_per_bead']), dtype=np.int64)
 
                 # Padding for recurrent training
-                for n in range(0, self.data.max['seq_len'] - len(atom_seq_dict[bead])):
-                    target_pos.append(np.zeros((1, 3)))
-                    target_type.append(target_type[-1])
-                    aa_feat.append(np.zeros(aa_feat[-1].shape))
-                    repl.append(np.ones(repl[-1].shape, dtype=bool))
+                if self.pad_seq:
+                    for n in range(0, self.data.max['seq_len'] - len(atom_seq_dict[bead])):
+                        target_pos.append(np.zeros((1, 3)))
+                        target_type.append(target_type[-1])
+                        aa_feat.append(np.zeros(aa_feat[-1].shape))
+                        repl.append(np.ones(repl[-1].shape, dtype=bool))
                 d["target_pos"] = np.array(target_pos, dtype=np.float32)
                 d["target_type"] = np.array(target_type, dtype=np.float32)
                 d["aa_feat"] = np.array(aa_feat, dtype=np.float32)
