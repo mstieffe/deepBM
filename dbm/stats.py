@@ -16,9 +16,13 @@ class Stats():
             self.path = Path("./stats/")
         self.path.mkdir(exist_ok=True)
 
-    def evaluate(self, subdir=None):
+    def evaluate(self, train=False, subdir=None):
         # evaluate for every folder stored in data
-        for name, samples in zip(self.data.folder_dict.keys(), self.data.folder_dict.values()):
+        if train:
+            samples_dict = self.data.dict_train
+        else:
+            samples_dict = self.data.dict_val
+        for name, samples in zip(self.data.samples_dict.keys(), self.data.samples_dict.values()):
             p = self.path / name
             p.mkdir(exist_ok=True)
             if subdir:
