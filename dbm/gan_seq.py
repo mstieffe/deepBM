@@ -625,7 +625,6 @@ class GAN_SEQ():
         else:
             samples_dir = self.out.samples_dir
         stats = Stats(self.data, dir= samples_dir / "stats")
-        stats.evaluate(train=False, subdir=str(self.epoch), save_samples=True)
 
         print("Saving samples in {}".format(samples_dir), "...", end='')
 
