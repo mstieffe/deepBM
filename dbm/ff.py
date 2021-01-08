@@ -439,7 +439,7 @@ class Energy():
             c6_term_cut = np.power(c6_term_cut, 6)
             c12_term_cut = np.power(c6_term_cut, 2)
             en_cut = np.subtract(c12_term_cut, c6_term_cut)
-            en_cut = np.multiply(en_cut, 4 * epsilon)
+            en_cut = np.multiply(en_cut, 4 * np.array(epsilon))
 
             en = np.where(dis > cutoff, 0.0, en - en_cut)
         en = np.sum(en)
