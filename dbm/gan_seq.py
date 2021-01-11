@@ -27,6 +27,7 @@ from shutil import copyfile
 from contextlib import redirect_stdout
 from operator import add
 from itertools import cycle
+import gc
 
 #tf.compat.v1.disable_eager_execution()
 
@@ -388,6 +389,14 @@ class GAN_SEQ():
             loss_epoch = [[], [], [], [], [], [], []]
             data = tqdm(self.loader_train, total=steps_per_epoch, leave=False)
             for batch in data:
+
+                for obj in gc.get_objects():
+                    try:
+                        if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                            print(type(obj), obj.size())
+                    except:
+                        pass
+
                 batch = self.map_to_device(batch)
                 elems, initial, energy_ndx = batch
                 elems = self.transpose_and_zip(elems)
