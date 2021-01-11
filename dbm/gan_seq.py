@@ -408,6 +408,8 @@ class GAN_SEQ():
                 val_batch = self.map_to_device(val_batch)
                 elems, initial, energy_ndx = val_batch
                 elems = self.transpose_and_zip(elems)
+                a,b,c,d = energy_ndx
+                print(a)
 
                 """
                 if n == n_critic:
