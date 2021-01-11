@@ -43,7 +43,7 @@ class Data():
         self.dir_processed = Path("./data/processed")
         self.dir_processed.mkdir(exist_ok=True)
 
-        self.samples_train, self.samples_val = [], []
+        #self.samples_train, self.samples_val = [], []
         self.dict_train, self.dict_val = {}, {}
         for path in self.dirs_train:
             self.dict_train[path.stem] = self.get_samples(path, save=save)
@@ -118,7 +118,7 @@ class Data():
                         bonds_ndx += f.energy_ndx_gibbs['bonds']
                         angles_ndx += f.energy_ndx_gibbs['angles']
                         dihs_ndx += f.energy_ndx_gibbs['dihs']
-                        ljs_ndx += f.energy_ndx_gibbs['ljs']
+                        ljs_ndx += f.energy_ndx_init['ljs']
                     max_dict['bonds_per_bead'] = max(len(set(bonds_ndx)), max_dict['bonds_per_bead'])
                     max_dict['angles_per_bead'] = max(len(set(angles_ndx)), max_dict['angles_per_bead'])
                     max_dict['dihs_per_bead'] = max(len(set(dihs_ndx)), max_dict['dihs_per_bead'])
