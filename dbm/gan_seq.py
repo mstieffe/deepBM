@@ -389,7 +389,8 @@ class GAN_SEQ():
             for batch in data:
                 batch = self.map_to_device(batch)
                 elems, initial, energy_ndx = batch
-                print(elems.size(), initial.size(), energy_ndx.size())
+                a,b = initial
+                print(a.size(), b.size())
                 elems = self.transpose_and_zip(elems)
 
                 if n == n_critic:
