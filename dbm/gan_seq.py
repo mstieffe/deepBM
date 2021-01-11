@@ -404,6 +404,11 @@ class GAN_SEQ():
                 elems, initial, energy_ndx = batch
                 elems = self.transpose_and_zip(elems)
 
+                val_batch = next(self.loader_val)
+                val_batch = self.map_to_device(val_batch)
+                elems, initial, energy_ndx = val_batch
+                elems = self.transpose_and_zip(elems)
+
                 """
                 if n == n_critic:
                     g_loss_dict = self.train_step_gen(elems, initial, energy_ndx, backprop=False)
