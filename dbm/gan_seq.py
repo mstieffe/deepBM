@@ -91,7 +91,7 @@ class DS(Dataset):
         initial = (atom_grid, cg_features)
         energy_ndx = (d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])
 
-        print(d['ljs_ndx'].shape)
+        #print(d['ljs_ndx'].shape)
         #energy_ndx = (bonds_ndx, angles_ndx, dihs_ndx, ljs_ndx)
 
         #return atom_grid, bead_grid, target_atom, target_type, aa_feat, repl, mask, energy_ndx

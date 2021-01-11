@@ -172,7 +172,10 @@ class Top():
                 ljs['inter_heavy'].append(lj)
         ljs['all'] = ljs['intra'] + ljs['inter']
         ljs['heavy'] = ljs['intra_heavy'] + ljs['inter_heavy']
-        ljs['predecessor'] = ljs['intra_predecessor'] + ljs['inter']
+        if self.atom.type.mass >= 2.0:
+            ljs['predecessor'] = ljs['intra_predecessor'] + ljs['inter_heavy']
+        else:
+            ljs['predecessor'] = ljs['intra_predecessor'] + ljs['inter']
 
 
         return ljs

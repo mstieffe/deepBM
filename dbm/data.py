@@ -54,8 +54,6 @@ class Data():
 
         #find maximums for padding
         self.max = self.get_max_dict()
-        print("max atoms: ", self.max['atoms_loc_env'])
-        print("max ljs: ", self.max['ljs_per_bead'])
 
         print("Successfully created universe! This took ", timer()-start, "secs")
 
@@ -118,7 +116,7 @@ class Data():
                         bonds_ndx += f.energy_ndx_gibbs['bonds']
                         angles_ndx += f.energy_ndx_gibbs['angles']
                         dihs_ndx += f.energy_ndx_gibbs['dihs']
-                        ljs_ndx += f.energy_ndx_init['ljs']
+                        ljs_ndx += f.energy_ndx_gibbs['ljs']
                     max_dict['bonds_per_bead'] = max(len(set(bonds_ndx)), max_dict['bonds_per_bead'])
                     max_dict['angles_per_bead'] = max(len(set(angles_ndx)), max_dict['angles_per_bead'])
                     max_dict['dihs_per_bead'] = max(len(set(dihs_ndx)), max_dict['dihs_per_bead'])
