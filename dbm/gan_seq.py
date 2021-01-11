@@ -393,7 +393,7 @@ class GAN_SEQ():
                 elems = self.transpose_and_zip(elems)
 
                 if n == n_critic:
-                    g_loss_dict = self.train_step_gen(elems, initial, energy_ndx)
+                    g_loss_dict = self.train_step_gen(elems, initial, energy_ndx, backprop=False)
                     for key, value in g_loss_dict.items():
                         self.out.add_scalar(key, value, global_step=self.step)
                     data.set_description('D: {}, G: {}, {}, {}, {}, {}, {}'.format(c_loss,
@@ -490,9 +490,9 @@ class GAN_SEQ():
             fake_atom_grid = torch.where(repl[:,:,None,None,None], fake_atom_grid, fake_atom)
             real_atom_grid = torch.where(repl[:,:,None,None,None], real_atom_grid, target_atom[:, None, :, :, :])
 
-        self.opt_critic.zero_grad()
-        c_loss.backward()
-        self.opt_critic.step()
+        #self.opt_critic.zero_grad()
+        #c_loss.backward()
+        #self.opt_critic.step()
 
         c_loss = c_loss.detach().cpu().numpy()
         return c_loss
