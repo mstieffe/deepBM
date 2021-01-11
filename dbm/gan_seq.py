@@ -387,8 +387,8 @@ class GAN_SEQ():
         for epoch in epochs:
             n = 0
             loss_epoch = [[], [], [], [], [], [], []]
-            data = tqdm(self.loader_train, total=steps_per_epoch, leave=False)
-            for batch in data:
+            data = tqdm(zip(self.loader_train, self.loader_val), total=steps_per_epoch, leave=False)
+            for train_batch, val_batch in data:
 
                 """
                 for obj in gc.get_objects():
@@ -400,16 +400,16 @@ class GAN_SEQ():
                 """
 
 
-                batch = self.map_to_device(batch)
-                elems, initial, energy_ndx = batch
+                train_batch = self.map_to_device(train_batch)
+                elems, initial, energy_ndx = train_batch
                 elems = self.transpose_and_zip(elems)
 
-                val_batch = next(self.loader_val)
+                #val_batch = next(self.loader_val)
                 val_batch = self.map_to_device(val_batch)
                 elems, initial, energy_ndx = val_batch
                 elems = self.transpose_and_zip(elems)
-                a,b,c,d = energy_ndx
-                print(a)
+                #a,b,c,d = energy_ndx
+                #print(a)
 
                 """
                 if n == n_critic:
