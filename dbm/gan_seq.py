@@ -97,7 +97,7 @@ class DS(Dataset):
 
         #return atom_grid, bead_grid, target_atom, target_type, aa_feat, repl, mask, energy_ndx
         #return atom_grid, cg_features, target_atom, d['target_type'], d['aa_feat'], d['repl'], d['mask'], energy_ndx, d['aa_pos']
-        return elems, initial, energy_ndx
+        return np.array(elems, dtype=np.float32), np.array(initial, dtype=np.float32), np.array(energy_ndx, dtype=np.int64)
 
 
     def array(self, elems, dtype):
