@@ -390,12 +390,15 @@ class GAN_SEQ():
             data = tqdm(self.loader_train, total=steps_per_epoch, leave=False)
             for batch in data:
 
+                """
                 for obj in gc.get_objects():
                     try:
                         if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
                             print(type(obj), obj.size())
                     except:
                         pass
+                """
+
 
                 batch = self.map_to_device(batch)
                 elems, initial, energy_ndx = batch
