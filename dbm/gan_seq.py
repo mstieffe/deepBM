@@ -390,30 +390,16 @@ class GAN_SEQ():
             data = tqdm(zip(self.loader_train, self.loader_val), total=steps_per_epoch, leave=False)
             for train_batch, val_batch in data:
 
-                """
-                for obj in gc.get_objects():
-                    try:
-                        if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
-                            print(type(obj), obj.size())
-                    except:
-                        pass
-                """
-
-
                 train_batch = self.map_to_device(train_batch)
                 elems, initial, energy_ndx = train_batch
                 elems = self.transpose_and_zip(elems)
 
-                #val_batch = next(self.loader_val)
-                val_batch = self.map_to_device(val_batch)
-                elems, initial, energy_ndx = val_batch
-                elems = self.transpose_and_zip(elems)
-                #a,b,c,d = energy_ndx
-                #print(a)
 
-                """
+
+
+
                 if n == n_critic:
-                    g_loss_dict = self.train_step_gen(elems, initial, energy_ndx, backprop=False)
+                    g_loss_dict = self.train_step_gen(elems, initial, energy_ndx)
                     for key, value in g_loss_dict.items():
                         self.out.add_scalar(key, value, global_step=self.step)
                     data.set_description('D: {}, G: {}, {}, {}, {}, {}, {}'.format(c_loss,
@@ -427,9 +413,6 @@ class GAN_SEQ():
                     for value, l in zip([c_loss] + list(g_loss_dict.values()), loss_epoch):
                         l.append(value)
 
-
-                    #track loss for val data
-                    val_batch = next(self.loader_val)
                     val_batch = self.map_to_device(val_batch)
                     elems, initial, energy_ndx = val_batch
                     elems = self.transpose_and_zip(elems)
@@ -441,8 +424,8 @@ class GAN_SEQ():
                 else:
                     c_loss = self.train_step_critic(elems, initial)
                     n += 1
-                """
-            """
+
+
             tqdm.write('epoch {} steps {} : D: {} G: {}, {}, {}, {}, {}, {}'.format(
                 self.epoch,
                 self.step,
@@ -461,7 +444,7 @@ class GAN_SEQ():
                 self.make_checkpoint()
                 self.out.prune_checkpoints()
                 self.validate()
-            """
+
 
 
 
@@ -511,9 +494,9 @@ class GAN_SEQ():
             fake_atom_grid = torch.where(repl[:,:,None,None,None], fake_atom_grid, fake_atom)
             real_atom_grid = torch.where(repl[:,:,None,None,None], real_atom_grid, target_atom[:, None, :, :, :])
 
-        #self.opt_critic.zero_grad()
-        #c_loss.backward()
-        #self.opt_critic.step()
+        self.opt_critic.zero_grad()
+        c_loss.backward()
+        self.opt_critic.step()
 
         c_loss = c_loss.detach().cpu().numpy()
         return c_loss
