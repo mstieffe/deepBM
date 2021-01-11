@@ -35,15 +35,15 @@ torch.set_default_dtype(torch.float32)
 
 
 class DS(Dataset):
-    def __init__(self, data, cfg):
+    def __init__(self, data, cfg, train=True):
 
         self.data = data
 
         generators = []
-        generators.append(Generator(data, hydrogens=False, gibbs=False, train=True, rand_rot=False))
-        generators.append(Generator(data, hydrogens=True, gibbs=False, train=True, rand_rot=False))
-        generators.append(Generator(data, hydrogens=False, gibbs=True, train=True, rand_rot=False))
-        generators.append(Generator(data, hydrogens=True, gibbs=True, train=True, rand_rot=False))
+        generators.append(Generator(data, hydrogens=False, gibbs=False, train=train, rand_rot=False))
+        generators.append(Generator(data, hydrogens=True, gibbs=False, train=train, rand_rot=False))
+        generators.append(Generator(data, hydrogens=False, gibbs=True, train=train, rand_rot=False))
+        generators.append(Generator(data, hydrogens=True, gibbs=True, train=train, rand_rot=False))
 
         self.elems = []
         for g in generators:
@@ -127,7 +127,7 @@ class GAN_SEQ():
 
         self.ff = self.data.ff
 
-        ds_val = DS(self.data, cfg)
+        ds_val = DS(self.data, cfg, train=False)
         loader_val = DataLoader(
             ds_val,
             batch_size=self.bs,
