@@ -6,7 +6,7 @@ from torch.autograd import grad as torch_grad
 from dbm.util import make_grid_np, rand_rot_mtx, rot_mtx_batch, voxelize_gauss, make_dir, avg_blob, voxelize_gauss_batch
 from dbm.torch_energy import *
 from dbm.output import *
-from dbm.recurrent_generator import Generator
+from dbm.recurrent_generator_erep import Generator
 from tqdm import tqdm
 import numpy as np
 #from tqdm import tqdm
@@ -125,6 +125,7 @@ class GAN_SEQ():
         )
 
         self.ff = self.data.ff
+        self.grid = torch.from_numpy(ds_train.grid).to(self.device)
 
         ds_val = DS(self.data, cfg)
         loader_val = DataLoader(
@@ -258,16 +259,33 @@ class GAN_SEQ():
         elems = zip(*args)
         return elems
 
-    def featurize(self, grid, features):
-        grid = grid[:, :, None, :, :, :] * features[:, :, :, None, None, None]
-        #grid (BS, N_atoms, 1, N_x, N_y, N_z) * features (BS, N_atoms, N_features, 1, 1, 1)
-        return torch.sum(grid, 1)
+    def featurize(self, grid, energy_ndx):
+        bond_ndx, angle_ndx, dih_ndx, lj_ndx = energy_ndx
+        coords = avg_blob(
+            grid,
+            res=self.cfg.getint('grid', 'resolution'),
+            width=self.cfg.getfloat('grid', 'length'),
+            sigma=self.cfg.getfloat('grid', 'sigma'),
+            device=self.device,
+        )
+
+        bond_grid = self.energy.bond_grid(self.grid, coords, bond_ndx)
+        angle_grid = self.energy.angle_grid(self.grid, coords, angle_ndx)
+        dih_grid = self.energy.dih_grid(self.grid, coords, dih_ndx)
+        lj_grid = self.energy.lj_grid(self.grid, coords, lj_ndx)
+
+        feature_grid = torch.stack([bond_grid, angle_grid, dih_grid, lj_grid], 1)
+
+        return torch.sum(feature_grid, 1)
 
     def prepare_condition(self, fake_atom_grid, real_atom_grid, aa_featvec, bead_features):
         fake_aa_features = self.featurize(fake_atom_grid, aa_featvec)
         real_aa_features = self.featurize(real_atom_grid, aa_featvec)
-        c_fake = fake_aa_features + bead_features
-        c_real = real_aa_features + bead_features
+        #c_fake = fake_aa_features + bead_features
+        #c_real = real_aa_features + bead_features
+        c_fake = torch.cat([fake_aa_features, bead_features], 1)
+        c_real = torch.cat([real_aa_features, bead_features], 1)
+
         return c_fake, c_real
 
     def generator_loss(self, critic_fake):
@@ -494,8 +512,7 @@ class GAN_SEQ():
         c_loss.backward()
         self.opt_critic.step()
 
-        c_loss = c_loss.detach().cpu().numpy()
-        return c_loss
+        return c_loss.detach().cpu().numpy()
 
 
     def train_step_gen(self, elems, initial, energy_ndx, backprop=True):
@@ -510,7 +527,9 @@ class GAN_SEQ():
         for target_atom, target_type, aa_featvec, repl, mask in elems:
             #prepare input for generator
             fake_aa_features = self.featurize(fake_atom_grid, aa_featvec)
-            c_fake = fake_aa_features + cg_features
+            #c_fake = fake_aa_features + cg_features
+            c_fake = torch.cat([fake_aa_features, cg_features], 1)
+
             z = torch.empty(
                 [target_atom.shape[0], self.z_dim],
                 dtype=torch.float32,
@@ -551,29 +570,12 @@ class GAN_SEQ():
             g_loss.backward()
             self.opt_generator.step()
 
-
-        g_wass = g_wass.detach().cpu().numpy()
-        energy_loss = energy_loss.detach().cpu().numpy()
-        b_energy = b_energy.detach().cpu().numpy()
-        a_energy = a_energy.detach().cpu().numpy()
-        d_energy = d_energy.detach().cpu().numpy()
-        l_energy = l_energy.detach().cpu().numpy()
-
-        g_loss_dict = {"Generator/wasserstein": g_wass,
-                       "Generator/energy": energy_loss,
-                       "Generator/energy_bond": b_energy,
-                       "Generator/energy_angle": a_energy,
-                       "Generator/energy_dih": d_energy,
-                       "Generator/energy_lj": l_energy}
-
-        """
         g_loss_dict = {"Generator/wasserstein": g_wass.detach().cpu().numpy(),
                        "Generator/energy": energy_loss.detach().cpu().numpy(),
                        "Generator/energy_bond": b_energy.detach().cpu().numpy(),
                        "Generator/energy_angle": a_energy.detach().cpu().numpy(),
                        "Generator/energy_dih": d_energy.detach().cpu().numpy(),
                        "Generator/energy_lj": l_energy.detach().cpu().numpy()}
-        """
 
         return g_loss_dict
 
