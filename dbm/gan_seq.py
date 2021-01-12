@@ -173,7 +173,8 @@ class GAN_SEQ():
         #self.lj_weight = cfg.getfloat('training', 'lj_weight')
         #self.covalent_weight = cfg.getfloat('training', 'covalent_weight')
         self.prior_mode = cfg.get('prior', 'mode')
-
+        print(self.prior_mode)
+        print("hhhhhhhhhhhh")
         #self.w_prior = torch.tensor(self.prior_weights[self.step], dtype=torch.float32, device=device)
 
         #Model selection
@@ -563,20 +564,24 @@ class GAN_SEQ():
         if self.prior_mode == 'match':
             b_loss, a_loss, d_loss, l_loss, b_energy, a_energy, d_energy, l_energy = self.energy_match_loss(real_atom_grid, fake_atom_grid, energy_ndx)
             energy_loss = self.ratio_bonded_nonbonded*(b_loss + a_loss + d_loss) + l_loss
+            g_loss = g_wass + self.prior_weight() * energy_loss
         elif self.prior_mode == 'min':
             b_energy, a_energy, d_energy, l_energy = self.energy_min_loss(fake_atom_grid, energy_ndx)
             energy_loss = self.ratio_bonded_nonbonded*(b_energy + a_energy + d_energy) + l_energy
+            g_loss = g_wass + self.prior_weight() * energy_loss
         else:
             b_energy, a_energy, d_energy, l_energy = self.energy_min_loss(fake_atom_grid, energy_ndx)
-            energy_loss = 0
+            energy_loss = self.ratio_bonded_nonbonded*(b_energy + a_energy + d_energy) + l_energy
+            g_loss = g_wass
 
-        g_loss = g_wass + self.prior_weight() * energy_loss
+        #g_loss = g_wass + self.prior_weight() * energy_loss
         #g_loss = g_wass
 
         if backprop:
             self.opt_generator.zero_grad()
             g_loss.backward()
             self.opt_generator.step()
+
 
         g_loss_dict = {"Generator/wasserstein": g_wass.detach().cpu().numpy(),
                        "Generator/energy": energy_loss.detach().cpu().numpy(),
