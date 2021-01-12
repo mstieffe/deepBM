@@ -393,7 +393,7 @@ class GAN_SEQ():
         for epoch in epochs:
             n = 0
             loss_epoch = [[], [], [], [], [], [], []]
-            data = tqdm(zip(self.loader_train, self.loader_val), total=steps_per_epoch, leave=False)
+            data = tqdm(zip(self.loader_train, cycle(self.loader_val)), total=steps_per_epoch, leave=False)
             for train_batch, val_batch in data:
 
                 train_batch = self.map_to_device(train_batch)
@@ -422,8 +422,9 @@ class GAN_SEQ():
                     val_batch = self.map_to_device(val_batch)
                     elems, initial, energy_ndx = val_batch
                     elems = self.transpose_and_zip(elems)
-                    _ = self.train_step_gen(elems, initial, energy_ndx, backprop=False)
-
+                    g_loss_dict = self.train_step_gen(elems, initial, energy_ndx, backprop=False)
+                    for key, value in g_loss_dict.items():
+                        self.out.add_scalar(key, value, global_step=self.step, mode='val')
                     self.step += 1
                     n = 0
 
