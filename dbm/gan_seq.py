@@ -709,11 +709,11 @@ class GAN_SEQ():
                         ndx = energies.argmin()
                         new_coords = torch.matmul(new_coords[ndx], rot_mtxs_transposed[ndx])
                         new_coords = new_coords.detach().cpu().numpy()
-
+                        print(new_coords.shape)
                         for c, a in zip(new_coords, d['atom_seq']):
-                            print(d['loc_env'].rot_back(c))
-                            print(c)
-                            print(c.shape)
+                            #print(d['loc_env'].rot_back(c))
+                            #print(c)
+                            #print(c.shape)
                             a.pos = d['loc_env'].rot_back(c)
 
                 print(timer()-start)
