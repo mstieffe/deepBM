@@ -145,7 +145,7 @@ class GAN_SEQ():
         #self.loader_val = cycle(loader_val)
         self.val_data = ds_val.data
 
-
+        print(len(ds_train), len(ds_val))
         self.n_gibbs = int(cfg.getint('validate', 'n_gibbs'))
 
         #model
