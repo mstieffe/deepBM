@@ -108,7 +108,6 @@ class GAN_SEQ():
     def __init__(self, device, cfg):
 
         self.device = device
-        self.device_cpu = torch.device("cpu")
         self.cfg = cfg
 
         self.bs = self.cfg.getint('training', 'batchsize')
@@ -145,7 +144,6 @@ class GAN_SEQ():
         #self.loader_val = cycle(loader_val)
         self.val_data = ds_val.data
 
-        print(len(ds_train), len(ds_val))
         self.n_gibbs = int(cfg.getint('validate', 'n_gibbs'))
 
         #model
@@ -155,7 +153,7 @@ class GAN_SEQ():
         self.z_and_label_dim = self.z_dim + self.n_atom_chns
 
         self.step = 0
-        self.epoch = 1
+        self.epoch = 0
 
         # Make Dirs for saving
         self.out = OutputHandler(
@@ -165,10 +163,16 @@ class GAN_SEQ():
         )
         self.energy = Energy_torch(self.ff, self.device)
 
-        self.prior_weights = self.get_prior_weights()
-        self.lj_weight = cfg.getfloat('training', 'lj_weight')
-        self.covalent_weight = cfg.getfloat('training', 'covalent_weight')
-        self.energy_prior_mode = int(cfg.getint('training', 'energy_prior_mode'))
+        prior_weights = self.cfg.get('prior', 'weights')
+        self.prior_weights = [float(v) for v in prior_weights.split(",")]
+        prior_schedule = self.cfg.get('prior', 'schedule')
+        self.prior_schedule = np.array([0] + [int(v) for v in prior_schedule.split(",")])
+
+        #self.prior_weights = self.get_prior_weights()
+        self.ratio_bonded_nonbonded = cfg.getfloat('prior', 'ratio_bonded_nonbonded')
+        #self.lj_weight = cfg.getfloat('training', 'lj_weight')
+        #self.covalent_weight = cfg.getfloat('training', 'covalent_weight')
+        self.prior_mode = cfg.get('training', 'energy_prior_mode')
 
         #self.w_prior = torch.tensor(self.prior_weights[self.step], dtype=torch.float32, device=device)
 
@@ -186,12 +190,12 @@ class GAN_SEQ():
 
         self.use_gp = cfg.getboolean('model', 'gp')
 
-        self.mse = torch.nn.MSELoss()
-        self.kld = torch.nn.KLDivLoss(reduction="batchmean")
+        #self.mse = torch.nn.MSELoss()
+        #self.kld = torch.nn.KLDivLoss(reduction="batchmean")
 
         self.critic.to(device=device)
         self.generator.to(device=device)
-        self.mse.to(device=device)
+        #self.mse.to(device=device)
 
         self.opt_generator_pretrain = Adam(self.generator.parameters(), lr=0.00005, betas=(0, 0.9))
         self.opt_generator = Adam(self.generator.parameters(), lr=0.00005, betas=(0, 0.9))
@@ -200,6 +204,15 @@ class GAN_SEQ():
 
         self.restored_model = False
         self.restore_latest_checkpoint()
+
+    def prior_weight(self):
+        ndx = next(x[0] for x in enumerate(self.prior_schedule) if x[1] > self.epoch) - 1
+        if ndx > 0 and self.prior_schedule[ndx] == self.epoch:
+            weight = self.prior_weights[ndx-1] + self.prior_weights[ndx] * (self.step - self.epoch*len(self.loader_train)) / len(self.loader_train)
+        else:
+            weight = self.prior_weights[ndx]
+
+        return weight
 
     def get_prior_weights(self):
         steps_per_epoch = len(self.loader_train)
@@ -228,6 +241,7 @@ class GAN_SEQ():
                 weights.append(prior_weights[ndx])
 
         return weights
+
 
     def make_checkpoint(self):
         return self.out.make_checkpoint(
@@ -386,7 +400,7 @@ class GAN_SEQ():
     def train(self):
         steps_per_epoch = len(self.loader_train)
         n_critic = self.cfg.getint('training', 'n_critic')
-        n_save = int(self.cfg.getint('record', 'n_save'))
+        n_save = int(self.cfg.getint('training', 'n_save'))
         
         epochs = tqdm(range(self.epoch, self.cfg.getint('training', 'n_epoch')))
         epochs.set_description('epoch: ')
@@ -408,13 +422,14 @@ class GAN_SEQ():
                     g_loss_dict = self.train_step_gen(elems, initial, energy_ndx)
                     for key, value in g_loss_dict.items():
                         self.out.add_scalar(key, value, global_step=self.step)
-                    data.set_description('D: {}, G: {}, {}, {}, {}, {}, {}'.format(c_loss,
+                    data.set_description('D: {}, G: {}, {}, {}, {}, {}, {}, {}'.format(c_loss,
                                                                                    g_loss_dict['Generator/wasserstein'],
                                                                                    g_loss_dict['Generator/energy'],
                                                                                    g_loss_dict['Generator/energy_bond'],
                                                                                    g_loss_dict['Generator/energy_angle'],
                                                                                    g_loss_dict['Generator/energy_dih'],
-                                                                                   g_loss_dict['Generator/energy_lj']))
+                                                                                   g_loss_dict['Generator/energy_lj'],
+                                                                                   g_loss_dict['Generator/prior_weight']))
 
                     for value, l in zip([c_loss] + list(g_loss_dict.values()), loss_epoch):
                         l.append(value)
@@ -505,8 +520,7 @@ class GAN_SEQ():
         c_loss.backward()
         self.opt_critic.step()
 
-        c_loss = c_loss.detach().cpu().numpy()
-        return c_loss
+        return c_loss.detach().cpu().numpy()
 
 
     def train_step_gen(self, elems, initial, energy_ndx, backprop=True):
@@ -546,15 +560,17 @@ class GAN_SEQ():
             fake_atom_grid = torch.where(repl[:,:,None,None,None], fake_atom_grid, fake_atom)
             real_atom_grid = torch.where(repl[:,:,None,None,None], real_atom_grid, target_atom[:, None, :, :, :])
 
-        if self.energy_prior_mode == 1:
+        if self.prior_mode == 'match':
             b_loss, a_loss, d_loss, l_loss, b_energy, a_energy, d_energy, l_energy = self.energy_match_loss(real_atom_grid, fake_atom_grid, energy_ndx)
-            energy_loss = self.covalent_weight*(b_loss + a_loss + d_loss) + self.lj_weight * l_loss
+            energy_loss = self.ratio_bonded_nonbonded*(b_loss + a_loss + d_loss) + l_loss
+        elif self.prior_mode == 'min':
+            b_energy, a_energy, d_energy, l_energy = self.energy_min_loss(fake_atom_grid, energy_ndx)
+            energy_loss = self.ratio_bonded_nonbonded*(b_energy + a_energy + d_energy) + l_energy
         else:
             b_energy, a_energy, d_energy, l_energy = self.energy_min_loss(fake_atom_grid, energy_ndx)
+            energy_loss = 0
 
-            energy_loss = self.covalent_weight*(b_energy + a_energy + d_energy) + self.lj_weight * l_energy
-
-        g_loss = g_wass + self.prior_weights[self.step] * energy_loss
+        g_loss = g_wass + self.prior_weight() * energy_loss
         #g_loss = g_wass
 
         if backprop:
@@ -562,29 +578,13 @@ class GAN_SEQ():
             g_loss.backward()
             self.opt_generator.step()
 
-
-        g_wass = g_wass.detach().cpu().numpy()
-        energy_loss = energy_loss.detach().cpu().numpy()
-        b_energy = b_energy.detach().cpu().numpy()
-        a_energy = a_energy.detach().cpu().numpy()
-        d_energy = d_energy.detach().cpu().numpy()
-        l_energy = l_energy.detach().cpu().numpy()
-
-        g_loss_dict = {"Generator/wasserstein": g_wass,
-                       "Generator/energy": energy_loss,
-                       "Generator/energy_bond": b_energy,
-                       "Generator/energy_angle": a_energy,
-                       "Generator/energy_dih": d_energy,
-                       "Generator/energy_lj": l_energy}
-
-        """
         g_loss_dict = {"Generator/wasserstein": g_wass.detach().cpu().numpy(),
                        "Generator/energy": energy_loss.detach().cpu().numpy(),
                        "Generator/energy_bond": b_energy.detach().cpu().numpy(),
                        "Generator/energy_angle": a_energy.detach().cpu().numpy(),
                        "Generator/energy_dih": d_energy.detach().cpu().numpy(),
-                       "Generator/energy_lj": l_energy.detach().cpu().numpy()}
-        """
+                       "Generator/energy_lj": l_energy.detach().cpu().numpy(),
+                       "Generator/prior_weight": self.prior_weight()}
 
         return g_loss_dict
 
