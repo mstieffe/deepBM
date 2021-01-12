@@ -116,27 +116,29 @@ class GAN_SEQ():
         #Data pipeline
         self.data = Data(cfg, save=True)
         ds_train = DS(self.data, cfg)
-        self.loader_train = DataLoader(
-            ds_train,
-            batch_size=self.bs,
-            shuffle=True,
-            drop_last=False,
-            pin_memory=True,
-            num_workers=0,
-        )
+        if len(ds_train) != 0:
+            self.loader_train = DataLoader(
+                ds_train,
+                batch_size=self.bs,
+                shuffle=True,
+                drop_last=False,
+                pin_memory=True,
+                num_workers=0,
+            )
 
         self.ff = self.data.ff
 
         ds_val = DS(self.data, cfg, train=False)
-        loader_val = DataLoader(
-            ds_val,
-            batch_size=self.bs,
-            shuffle=True,
-            drop_last=False,
-            pin_memory=True,
-            num_workers=0,
-        )
-        self.loader_val = cycle(loader_val)
+        if len(ds_val) != 0:
+            loader_val = DataLoader(
+                ds_val,
+                batch_size=self.bs,
+                shuffle=True,
+                drop_last=False,
+                pin_memory=True,
+                num_workers=0,
+            )
+        #self.loader_val = cycle(loader_val)
         self.val_data = ds_val.data
 
 
