@@ -634,7 +634,7 @@ class GAN_SEQ():
             print(fake_atom.size())
 
         #generated_atoms = torch.stack(generated_atoms, dim=1)
-        generated_atoms = torch.concat(generated_atoms, dim=1)
+        generated_atoms = torch.cat(generated_atoms, dim=1)
 
         print(generated_atoms.size())
         generated_atoms_coords = avg_blob(
