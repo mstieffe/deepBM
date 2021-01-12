@@ -170,7 +170,7 @@ class GAN_SEQ():
         self.covalent_weight = cfg.getfloat('training', 'covalent_weight')
         self.energy_prior_mode = int(cfg.getint('training', 'energy_prior_mode'))
 
-        self.w_prior = torch.tensor(self.prior_weights[self.step], dtype=torch.float32, device=device)
+        #self.w_prior = torch.tensor(self.prior_weights[self.step], dtype=torch.float32, device=device)
 
         #Model selection
         if cfg.get('model', 'model_type') == "small":
