@@ -633,7 +633,9 @@ class GAN_SEQ():
             aa_grid = torch.where(repl[:,:,None,None,None], aa_grid, fake_atom)
             print(fake_atom.size())
 
-        generated_atoms = torch.stack(generated_atoms, dim=1)
+        #generated_atoms = torch.stack(generated_atoms, dim=1)
+        generated_atoms = torch.concat(generated_atoms, dim=1)
+
         print(generated_atoms.size())
         generated_atoms_coords = avg_blob(
             generated_atoms,
