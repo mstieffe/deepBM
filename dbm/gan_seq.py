@@ -125,12 +125,14 @@ class GAN_SEQ():
                 pin_memory=True,
                 num_workers=0,
             )
+        else:
+            self.loader_train = []
 
         self.ff = self.data.ff
 
         ds_val = DS(self.data, cfg, train=False)
         if len(ds_val) != 0:
-            loader_val = DataLoader(
+            self.loader_val = DataLoader(
                 ds_val,
                 batch_size=self.bs,
                 shuffle=True,
@@ -138,6 +140,8 @@ class GAN_SEQ():
                 pin_memory=True,
                 num_workers=0,
             )
+        else:
+            self.loader_val = []
         #self.loader_val = cycle(loader_val)
         self.val_data = ds_val.data
 
