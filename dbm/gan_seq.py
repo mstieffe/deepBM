@@ -706,6 +706,7 @@ class GAN_SEQ():
 
                         for c, a in zip(new_coords, d['atom_seq']):
                             a.pos = d['loc_env'].rot_back(c)
+                            print(d['loc_env'].rot_back(c))
 
                 print(timer()-start)
             stats.evaluate(train=False, subdir=str(self.epoch), save_samples=True)
