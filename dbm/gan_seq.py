@@ -711,7 +711,7 @@ class GAN_SEQ():
                         new_coords = new_coords.detach().cpu().numpy()
                         print(new_coords.shape)
                         for a in d['atom_seq']:
-                            print(a.type.name)
+                            print(a.type.name, a.mol_index)
                         for c, a in zip(new_coords, d['atom_seq']):
                             #print(d['loc_env'].rot_back(c))
                             #print(c)
