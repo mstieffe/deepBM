@@ -705,21 +705,12 @@ class GAN_SEQ():
 
                         new_coords, energies = self.predict(elems, initial, energy_ndx)
 
-                        print(energies.size())
-                        new_coords = np.squeeze(new_coords)
-                        energies = np.squeeze(energies)
-                        print(energies.size())
-
                         ndx = energies.argmin()
                         new_coords = torch.matmul(new_coords[ndx], rot_mtxs_transposed[ndx])
                         new_coords = new_coords.detach().cpu().numpy()
-                        #print(new_coords.shape)
-                        #for a in d['atom_seq']:
-                            #print(a.type.name, a.mol_index)
+
                         for c, a in zip(new_coords, d['atom_seq']):
-                            #print(d['loc_env'].rot_back(c))
-                            #print(c)
-                            #print(c.shape)
+
                             a.pos = d['loc_env'].rot_back(c)
 
                 print(timer()-start)
