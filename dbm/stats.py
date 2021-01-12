@@ -193,18 +193,18 @@ class Stats():
                 plane1 += list(np.cross(vec1, vec2))
                 plane2 += list(np.cross(vec2, vec3))
 
-            norm1 = np.square(plane1)
-            norm1 = np.sum(norm1, axis=-1)
-            norm1 = np.sqrt(norm1)
-            norm2 = np.square(plane2)
-            norm2 = np.sum(norm2, axis=-1)
-            norm2 = np.sqrt(norm2)
-            norm = np.multiply(norm1, norm2)
-            dot = np.multiply(plane1, plane2)
-            dot = np.sum(dot, axis=-1)
-            angles = np.clip(np.divide(dot, norm), -1.0, 1.0)
-            angles = np.arccos(angles)
-            angles = angles*180./math.pi
+        norm1 = np.square(plane1)
+        norm1 = np.sum(norm1, axis=-1)
+        norm1 = np.sqrt(norm1)
+        norm2 = np.square(plane2)
+        norm2 = np.sum(norm2, axis=-1)
+        norm2 = np.sqrt(norm2)
+        norm = np.multiply(norm1, norm2)
+        dot = np.multiply(plane1, plane2)
+        dot = np.sum(dot, axis=-1)
+        angles = np.clip(np.divide(dot, norm), -1.0, 1.0)
+        angles = np.arccos(angles)
+        angles = angles*180./math.pi
 
         dstr = self.make_histo(angles, n_bins=n_bins, low=low, high=high)
 
