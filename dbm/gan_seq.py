@@ -710,6 +710,8 @@ class GAN_SEQ():
                         new_coords = torch.matmul(new_coords[ndx], rot_mtxs_transposed[ndx])
                         new_coords = new_coords.detach().cpu().numpy()
                         print(new_coords.shape)
+                        for a in d['atom_seq']:
+                            print(a.type.name)
                         for c, a in zip(new_coords, d['atom_seq']):
                             #print(d['loc_env'].rot_back(c))
                             #print(c)
