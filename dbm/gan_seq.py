@@ -172,7 +172,7 @@ class GAN_SEQ():
         self.ratio_bonded_nonbonded = cfg.getfloat('prior', 'ratio_bonded_nonbonded')
         #self.lj_weight = cfg.getfloat('training', 'lj_weight')
         #self.covalent_weight = cfg.getfloat('training', 'covalent_weight')
-        self.prior_mode = cfg.get('prior', 'energy_prior_mode')
+        self.prior_mode = cfg.get('prior', 'mode')
 
         #self.w_prior = torch.tensor(self.prior_weights[self.step], dtype=torch.float32, device=device)
 
