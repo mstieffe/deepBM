@@ -631,12 +631,10 @@ class GAN_SEQ():
 
             #update aa grids
             aa_grid = torch.where(repl[:,:,None,None,None], aa_grid, fake_atom)
-            print(fake_atom.size())
 
         #generated_atoms = torch.stack(generated_atoms, dim=1)
         generated_atoms = torch.cat(generated_atoms, dim=1)
 
-        print(generated_atoms.size())
         generated_atoms_coords = avg_blob(
             generated_atoms,
             res=self.cfg.getint('grid', 'resolution'),
@@ -644,8 +642,7 @@ class GAN_SEQ():
             sigma=self.cfg.getfloat('grid', 'sigma'),
             device=self.device,
         )
-        print(generated_atoms_coords.size())
-        print("ffffffffffffff")
+
         b_energy, a_energy, d_energy, l_energy = self.get_energies_from_grid(aa_grid, energy_ndx)
         energy = b_energy + a_energy + d_energy + l_energy
 
@@ -708,10 +705,10 @@ class GAN_SEQ():
 
                         new_coords, energies = self.predict(elems, initial, energy_ndx)
 
-                        print(new_coords.size())
+                        print(energies.size())
                         new_coords = np.squeeze(new_coords)
-                        print(new_coords.size())
                         energies = np.squeeze(energies)
+                        print(energies.size())
 
                         ndx = energies.argmin()
                         new_coords = torch.matmul(new_coords[ndx], rot_mtxs_transposed[ndx])
