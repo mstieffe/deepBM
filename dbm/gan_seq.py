@@ -126,7 +126,7 @@ class GAN_SEQ():
             )
         else:
             self.loader_train = []
-        self.steps_per_epoch = int(len(self.loader_train / (self.cfg.getint('training', 'n_critic') + 1)))
+        self.steps_per_epoch = int(len(self.loader_train) / (self.cfg.getint('training', 'n_critic') + 1))
         print(len(self.loader_train), self.steps_per_epoch)
         self.ff = self.data.ff
 
