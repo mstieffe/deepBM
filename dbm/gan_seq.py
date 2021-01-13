@@ -213,7 +213,7 @@ class GAN_SEQ():
         except:
             ndx = len(self.prior_schedule) - 1
         if ndx > 0 and self.prior_schedule[ndx] == self.epoch:
-            weight = self.prior_weights[ndx-1] + self.prior_weights[ndx] * (self.step - self.epoch*len(self.loader_train)) / len(self.loader_train)
+            weight = self.prior_weights[ndx-1] + self.prior_weights[ndx] * (self.step - self.epoch*self.steps_per_epoch) / self.steps_per_epoch
         else:
             weight = self.prior_weights[ndx]
 

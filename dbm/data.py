@@ -66,10 +66,12 @@ class Data():
                 samples = pickle.load(input)
             print("Loaded train universe from " + str(processed_path))
         else:
+            print("hier")
             samples = []
             cg_dir = path / "cg"
             aa_dir = path / "aa"
             for cg_path in cg_dir.glob('*.gro'):
+                print("hier auch")
                 aa_path = aa_dir / cg_path.name
                 path_dict = {'dir': path, 'cg_path': cg_path, 'file_name': cg_path.stem}
                 if aa_path.exists():
