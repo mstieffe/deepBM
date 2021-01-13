@@ -126,7 +126,8 @@ class GAN_SEQ():
             )
         else:
             self.loader_train = []
-
+        self.steps_per_epoch = int(len(self.loader_train / (self.cfg.getint('training', 'n_critic') + 1)))
+        print(len(self.loader_train), self.steps_per_epoch)
         self.ff = self.data.ff
 
         ds_val = DS(self.data, cfg, train=False)
@@ -207,7 +208,10 @@ class GAN_SEQ():
         self.restore_latest_checkpoint()
 
     def prior_weight(self):
-        ndx = next(x[0] for x in enumerate(self.prior_schedule) if x[1] > self.epoch) - 1
+        try:
+            ndx = next(x[0] for x in enumerate(self.prior_schedule) if x[1] > self.epoch) - 1
+        except:
+            ndx = len(self.prior_schedule) - 1
         if ndx > 0 and self.prior_schedule[ndx] == self.epoch:
             weight = self.prior_weights[ndx-1] + self.prior_weights[ndx] * (self.step - self.epoch*len(self.loader_train)) / len(self.loader_train)
         else:
@@ -463,7 +467,7 @@ class GAN_SEQ():
 
             self.epoch += 1
 
-            if epoch % n_save == 0:
+            if self.epoch % n_save == 0:
                 self.make_checkpoint()
                 self.out.prune_checkpoints()
                 self.validate()
@@ -563,15 +567,15 @@ class GAN_SEQ():
 
         if self.prior_mode == 'match':
             b_loss, a_loss, d_loss, l_loss, b_energy, a_energy, d_energy, l_energy = self.energy_match_loss(real_atom_grid, fake_atom_grid, energy_ndx)
-            energy_loss = self.ratio_bonded_nonbonded*(b_loss + a_loss + d_loss) + l_loss
-            g_loss = g_wass + self.prior_weight() * energy_loss
+            energy_loss = (self.ratio_bonded_nonbonded*(b_loss + a_loss + d_loss) + l_loss) * self.prior_weight()
+            g_loss = g_wass + energy_loss
         elif self.prior_mode == 'min':
             b_energy, a_energy, d_energy, l_energy = self.energy_min_loss(fake_atom_grid, energy_ndx)
-            energy_loss = self.ratio_bonded_nonbonded*(b_energy + a_energy + d_energy) + l_energy
-            g_loss = g_wass + self.prior_weight() * energy_loss
+            energy_loss = (self.ratio_bonded_nonbonded*(b_energy + a_energy + d_energy) + l_energy) * self.prior_weight()
+            g_loss = g_wass + energy_loss
         else:
             b_energy, a_energy, d_energy, l_energy = self.energy_min_loss(fake_atom_grid, energy_ndx)
-            energy_loss = self.ratio_bonded_nonbonded*(b_energy + a_energy + d_energy) + l_energy
+            energy_loss = (self.ratio_bonded_nonbonded*(b_energy + a_energy + d_energy) + l_energy) * self.prior_weight()
             g_loss = g_wass
 
         #g_loss = g_wass + self.prior_weight() * energy_loss
