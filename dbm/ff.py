@@ -154,7 +154,6 @@ class FF():
         #dictionary for channel names
         ff_elems = list(self.bead_types.values()) \
                    + list(self.atom_types.values()) \
-                   + list(self.center_bead_types.values()) \
                    + list(self.bond_types.values()) \
                    + list(self.angle_types.values()) \
                    + list(self.dih_types.values()) \
