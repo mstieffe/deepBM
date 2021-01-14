@@ -97,10 +97,10 @@ class FF():
             self.bead_types[name] = Bead_Type(name, channel)
 
         #load center bead types
-        self.center_bead_types = {}
-        for line in read_between("[center_beadtypes]", "[/center_beadtypes]", self.file):
-            name, channel = line.split()
-            self.center_bead_types[name] = Bead_Type(name, channel)
+        #self.center_bead_types = {}
+        #for line in read_between("[center_beadtypes]", "[/center_beadtypes]", self.file):
+        #    name, channel = line.split()
+        #    self.center_bead_types[name] = Bead_Type(name, channel)
 
         #load atom types
         self.atom_types = {}
