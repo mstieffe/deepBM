@@ -4,6 +4,10 @@ from pathlib import Path
 from scipy.stats import entropy
 from dbm.universe1 import *
 from dbm.fig import *
+from dbm.recurrent_generator import Generator
+from itertools import islice
+import random
+import matplotlib.pyplot as plt
 
 class Stats():
 
@@ -324,3 +328,37 @@ class Stats():
         for sample in samples:
             energies.append(sample.energy.lj_pot(ref=ref, shift=shift, cutoff=cutoff))
         return energies
+
+    def plot_envs(self, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False):
+
+        gen = iter(Generator(self.data, hydrogens=hydrogens, gibbs=gibbs, train=train, rand_rot=rand_rot, pad_seq=pad_seq, ref_pos=ref_pos))
+        elems = list(islice(gen, 100))
+        d = random.choice(elems)
+
+        for t_pos, aa_feat, repl, a in zip(d['target_pos'], d['aa_feat'], d['repl'], d['atom_seq']):
+            print(a.type.name)
+            print(a.mol_index)
+            coords = np.concatenate((d['aa_pos'], d['cg_pos']))
+            featvec = np.concatenate((aa_feat, d['cg_feat']))
+            _, n_channels = featvec.shape
+            fig = plt.figure(figsize=(20,20))
+            for c in range(0, n_channels):
+                ax = fig.add_subplot(5,6,c+1, projection='3d')
+                ax.set_title("Chn. Nr:"+str(c)+" "+self.data.ff.chn_dict[c], fontsize=4)
+                for n in range(0, len(coords)):
+                    if featvec[n,c] == 1:
+                        ax.scatter(coords[n,0], coords[n,1], coords[n,2], s=5, marker='o', color='black', alpha = 0.5)
+                ax.scatter(t_pos[0,0], t_pos[0,1], t_pos[0,2], s=5, marker='o', color='red')
+                ax.set_xlim3d(-.8, 0.8)
+                ax.set_ylim3d(-.8, 0.8)
+                ax.set_zlim3d(-.8, 0.8)
+                ax.set_xticks(np.arange(-1, 1, step=0.5))
+                ax.set_yticks(np.arange(-1, 1, step=0.5))
+                ax.set_zticks(np.arange(-1, 1, step=0.5))
+                ax.tick_params(labelsize=6)
+                plt.plot([0.0, 0.0], [0.0, 0.0], [-1.0, 1.0])
+            plt.show()
+            #print(repl.shape)
+            #print(d['aa_pos'].shape)
+            #print(t_pos.shape)
+            d['aa_pos'] = np.where(repl[:, np.newaxis], d['aa_pos'], t_pos)

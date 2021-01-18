@@ -275,49 +275,8 @@ class Universe():
         plt.show()
 
     def plot_envs(self, bead, train=True, mode="init", only_first=False, cg_kick=0.0):
-        if self.heavy_first:
-            atom_seq_dict = self.atom_seq_dict_heavy
-        else:
-            atom_seq_dict = self.atom_seq_dict
-        start_atom = atom_seq_dict[bead][0]
-        feature = self.features[start_atom]
 
-        cg_feat = self.pad2d(feature.bead_featvec, self.max_beads)
-        cg_pos = self.pad2d(feature.bead_positions(cg_kick), self.max_beads)
-
-        if train and mode == "gibbs":
-            aa_pos = feature.atom_positions_ref()
-        elif train:
-            aa_pos = feature.atom_positions_random_mixed(0.4, self.kick)
-        else:
-            aa_pos = feature.atom_positions()
-        aa_pos = self.pad2d(aa_pos, self.max_atoms)
-
-        target_pos, target_type, aa_feat, repl = [], [], [], []
-        for atom in atom_seq_dict[bead]:
-            feature = self.features[atom]
-
-            t_pos = feature.rot(np.array([atom.ref_pos]))
-            target_pos.append(t_pos)
-            t_type = np.zeros((1, self.ff.n_atom_chns))
-            t_type[0, atom.type.channel] = 1
-            target_type.append(t_type)
-
-            if mode == "gibbs" and self.heavy_first:
-                print("heavy first")
-                atom_featvec = self.pad2d(feature.atom_featvec_gibbs_hf, self.max_atoms)
-
-            elif mode == "gibbs" and not(self.heavy_first):
-                atom_featvec = self.pad2d(feature.atom_featvec_gibbs, self.max_atoms)
-
-            else:
-                atom_featvec = self.pad2d(feature.atom_featvec_init, self.max_atoms)
-            aa_feat.append(atom_featvec)
-
-            r = self.pad1d(feature.repl, self.max_atoms, value=True)
-            r = r[np.newaxis, np.newaxis, np.newaxis, :]
-            repl.append(r)
-
+        gen = iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False))
 
         # Padding for recurrent training
         for n in range(0, self.max_seq_len - len(atom_seq_dict[bead])):

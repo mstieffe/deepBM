@@ -67,7 +67,7 @@ class Generator():
                         dihs_ndx += aa_f.energy_ndx_gibbs['dihs']
                         ljs_ndx += aa_f.energy_ndx_gibbs['ljs']
                     else:
-                        atom_featvec = self.pad2d(aa_f.fv_gibbs, self.data.max['atoms_loc_env'])
+                        atom_featvec = self.pad2d(aa_f.fv_init, self.data.max['atoms_loc_env'])
                         bonds_ndx += aa_f.energy_ndx_init['bonds']
                         angles_ndx += aa_f.energy_ndx_init['angles']
                         dihs_ndx += aa_f.energy_ndx_init['dihs']
