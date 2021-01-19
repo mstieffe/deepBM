@@ -712,6 +712,7 @@ class GAN_SEQ():
                         initial = (aa_grid, cg_features)
 
                         elems = (d['target_type'], d['aa_feat'], d['repl'])
+                        print("feat vec", np.sum(d['aa_feat'], 0))
                         elems = self.transpose(self.insert_dim(self.to_tensor(elems)))
 
                         energy_ndx = (d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])
