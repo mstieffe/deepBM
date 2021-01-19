@@ -656,7 +656,7 @@ class GAN_SEQ():
         b_energy, a_energy, d_energy, l_energy = self.get_energies_from_grid(aa_grid, energy_ndx)
         energy = b_energy + a_energy + d_energy + l_energy
 
-        return generated_atoms_coords, energy
+        return generated_atoms_coords, b_energy, a_energy, d_energy, l_energy
 
     def validate(self, samples_dir=None):
 
@@ -714,8 +714,13 @@ class GAN_SEQ():
                         energy_ndx = (d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])
                         energy_ndx = self.repeat(self.to_tensor(energy_ndx))
 
-                        new_coords, energies = self.predict(elems, initial, energy_ndx)
+                        new_coords, b,a,d,l = self.predict(elems, initial, energy_ndx)
 
+                        energies = b+a+d+l
+                        print("bond", b)
+                        print("angle", a)
+                        print("dih", d)
+                        print("lj", l)
                         ndx = energies.argmin()
                         print(energies)
                         print(ndx)
