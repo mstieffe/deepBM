@@ -720,6 +720,7 @@ class GAN_SEQ():
                         new_coords, b_,a_,d_,l_ = self.predict(elems, initial, energy_ndx)
 
                         energies = b_+a_+d_+l_
+                        print(new_coords)
                         print("bond ndx", d['bonds_ndx'])
                         print("bond", b_)
                         print("angle", a_)
