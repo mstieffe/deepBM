@@ -697,8 +697,11 @@ class GAN_SEQ():
                 for d in data_gen:
                     with torch.no_grad():
 
-                        aa_coords = torch.matmul(torch.from_numpy(d['aa_pos']).to(self.device).float(), rot_mtxs)
-                        cg_coords = torch.matmul(torch.from_numpy(d['cg_pos']).to(self.device).float(), rot_mtxs)
+                        #aa_coords = torch.matmul(torch.from_numpy(d['aa_pos']).to(self.device).float(), rot_mtxs)
+                        #cg_coords = torch.matmul(torch.from_numpy(d['cg_pos']).to(self.device).float(), rot_mtxs)
+
+                        aa_coords = torch.from_numpy(d['aa_pos']).to(self.device).float()
+                        cg_coords = torch.from_numpy(d['cg_pos']).to(self.device).float()
 
                         aa_grid = self.to_voxel(aa_coords, grid, sigma)
                         cg_grid = self.to_voxel(cg_coords, grid, sigma)
@@ -725,7 +728,10 @@ class GAN_SEQ():
                         ndx = energies.argmin()
                         print(energies)
                         print(ndx)
-                        new_coords = torch.matmul(new_coords[ndx], rot_mtxs_transposed[ndx])
+                        #new_coords = torch.matmul(new_coords[ndx], rot_mtxs_transposed[ndx])
+                        new_coords = new_coords[ndx]
+
+
                         new_coords = new_coords.detach().cpu().numpy()
 
                         for c, a in zip(new_coords, d['atom_seq']):
