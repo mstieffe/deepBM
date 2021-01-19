@@ -85,15 +85,17 @@ class FF():
 
         #load general information
         for line in read_between("[general]", "[/general]", self.file):
-            name, n_excl, n_channels = line.split()
+            name, n_excl = line.split()
         self.name = name
         self.n_excl = int(n_excl)
-        self.n_channels = int(n_channels)
+        #self.n_channels = int(n_channels)
+        self.n_channels = 0
 
         #load bead types
         self.bead_types = {}
         for line in read_between("[bead_types]", "[/bead_types]", self.file):
             name, channel = line.split()
+            self.n_channels = max(self.n_channels, channel +1)
             self.bead_types[name] = Bead_Type(name, channel)
 
         #load center bead types
@@ -106,6 +108,7 @@ class FF():
         self.atom_types = {}
         for line in read_between("[atom_types]", "[/atom_types]", self.file):
             name, channel, mass, charge, sigma, epsilon = line.split()
+            self.n_channels = max(self.n_channels, channel +1)
             self.atom_types[name] = Atom_Type(name, channel, mass, charge, sigma, epsilon)
         self.n_atom_chns = len(set([atype.channel for atype in self.atom_types.values()]))
 
@@ -113,6 +116,7 @@ class FF():
         self.lj_types = {}
         for line in read_between("[lj_types]", "[/lj_types]", self.file):
             name1, name2, channel = line.split()
+            self.n_channels = max(self.n_channels, channel +1)
             self.lj_types[(name1, name2)] = LJ_Type(self.atom_types[name1], self.atom_types[name2], channel)
         self.lj_index_dict = dict(zip(self.lj_types.values(), range(0,len(self.lj_types))))
 
@@ -122,6 +126,7 @@ class FF():
         for line in read_between("[bond_types]", "[/bond_types]", self.file):
             name1, name2, channel, func, equil, force_const = line.split()
             name = (name1, name2)
+            self.n_channels = max(self.n_channels, channel +1)
             self.bond_types[name] = Bond_Type(name, channel, func, equil, force_const)
         self.bond_index_dict = dict(zip(self.bond_types.values(), range(0,len(self.bond_types))))
 
@@ -132,6 +137,7 @@ class FF():
         for line in read_between("[angle_types]", "[/angle_types]", self.file):
             name1, name2, name3, channel, func, equil, force_const = line.split()
             name = (name1, name2, name3)
+            self.n_channels = max(self.n_channels, channel +1)
             self.angle_types[name] = Angle_Type(name, channel, func, equil, force_const)
         self.angle_index_dict = dict(zip(self.angle_types.values(), range(0,len(self.angle_types))))
 
@@ -141,14 +147,18 @@ class FF():
             if len(line.split()) == 9:
                 name1, name2, name3, name4, channel, func, equil, force_const, mult = line.split()
                 name = (name1, name2, name3, name4)
+                self.n_channels = max(self.n_channels, channel + 1)
                 self.dih_types[name] = Dih_Type(name, channel, func, equil, force_const, mult)
             else:
                 name1, name2, name3, name4, channel, func, equil, force_const = line.split()
                 name = (name1, name2, name3, name4)
+                self.n_channels = max(self.n_channels, channel + 1)
                 self.dih_types[name] = Dih_Type(name, channel, func, equil, force_const)
         self.dih_index_dict = dict(zip(self.dih_types.values(),range(0,len(self.dih_types))))
 
+        self.n_channels += 1
         self.chn_dict = self.make_chn_dict()
+
 
     def make_chn_dict(self):
         #dictionary for channel names

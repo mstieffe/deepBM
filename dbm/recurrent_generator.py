@@ -47,7 +47,7 @@ class Generator():
                     d["aa_pos"] = self.pad2d(loc_env.atom_positions(), self.data.max['atoms_loc_env'])
 
                 #just for debugging...
-                d["aa_pos_ref"] = self.pad2d(loc_env.atom_positions_ref(), self.data.max['atoms_loc_env'])
+                #d["aa_pos_ref"] = self.pad2d(loc_env.atom_positions_ref(), self.data.max['atoms_loc_env'])
 
 
                 target_pos, target_type, aa_feat, repl = [], [], [], []

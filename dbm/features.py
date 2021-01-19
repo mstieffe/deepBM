@@ -81,7 +81,8 @@ class AA_Feature():
     def featvec(self, key='all'):
         atom_featvec = np.zeros((len(self.loc_env.atoms), self.top.ff.n_channels))
         for index in range(0, len(self.loc_env.atoms)):
-            atom_featvec[index, self.loc_env.atoms[index].type.channel] = 1
+            if self.loc_env.atoms[index].type.channel > 0:
+                atom_featvec[index, self.loc_env.atoms[index].type.channel] = 1
         for bond in self.top.bonds[key]:
             indices = self.loc_env.get_indices(bond.atoms)
             atom_featvec[indices, bond.type.channel] = 1
@@ -153,5 +154,5 @@ class CG_Feature():
         bead_featvec = np.zeros((len(self.loc_env.beads), self.ff.n_channels))
         for index in range(0, len(self.loc_env.beads)):
             bead_featvec[index, self.loc_env.beads[index].type.channel] = 1
-        #bead_featvec[self.env_beads.index(self.bead), self.ff.center_bead_types[self.bead.type.name].channel] = 1
+        bead_featvec[self.loc_env.beads.index(self.loc_env.bead), -1] = 1
         return bead_featvec
