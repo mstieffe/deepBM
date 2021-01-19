@@ -733,6 +733,45 @@ class GAN_SEQ():
                         new_coords = new_coords[ndx]
 
 
+                        print("::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::")
+
+
+                        aa_coords = torch.from_numpy(d['aa_pos_ref']).to(self.device).float()
+                        cg_coords = torch.from_numpy(d['cg_pos']).to(self.device).float()
+
+                        aa_grid = self.to_voxel(aa_coords, grid, sigma)
+                        cg_grid = self.to_voxel(cg_coords, grid, sigma)
+
+                        cg_features = torch.from_numpy(d['cg_feat'][None, :, :, None, None, None]).to(self.device) * cg_grid[:, :, None, :, :, :]
+                        cg_features = torch.sum(cg_features, 1)
+
+                        initial = (aa_grid, cg_features)
+
+                        elems = (d['target_type'], d['aa_feat'], d['repl'])
+                        elems = self.transpose(self.insert_dim(self.to_tensor(elems)))
+
+                        energy_ndx = (d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])
+                        energy_ndx = self.repeat(self.to_tensor(energy_ndx))
+
+                        new_coords, b_,a_,d_,l_ = self.predict(elems, initial, energy_ndx)
+
+                        energies = b_+a_+d_+l_
+                        print(new_coords)
+                        print("bond ndx", d['bonds_ndx'])
+                        print("bond", b_)
+                        print("angle", a_)
+                        print("dih", d_)
+                        print("lj", l_)
+                        ndx = energies.argmin()
+                        print(energies)
+                        print(ndx)
+                        #new_coords = torch.matmul(new_coords[ndx], rot_mtxs_transposed[ndx])
+                        new_coords = new_coords[ndx]
+
+
+                        print("_______________________________________________________________________________")
+
+
                         new_coords = new_coords.detach().cpu().numpy()
 
                         for c, a in zip(new_coords, d['atom_seq']):
