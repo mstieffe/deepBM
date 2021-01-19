@@ -714,13 +714,13 @@ class GAN_SEQ():
                         energy_ndx = (d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])
                         energy_ndx = self.repeat(self.to_tensor(energy_ndx))
 
-                        new_coords, b,a,d,l = self.predict(elems, initial, energy_ndx)
+                        new_coords, b_,a_,d_,l_ = self.predict(elems, initial, energy_ndx)
 
-                        energies = b+a+d+l
-                        print("bond", b)
-                        print("angle", a)
-                        print("dih", d)
-                        print("lj", l)
+                        energies = b_+a_+d_+l_
+                        print("bond", b_)
+                        print("angle", a_)
+                        print("dih", d_)
+                        print("lj", l_)
                         ndx = energies.argmin()
                         print(energies)
                         print(ndx)
