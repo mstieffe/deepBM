@@ -279,8 +279,8 @@ class GAN_SEQ():
         real_aa_features = self.featurize(real_atom_grid, energy_ndx)
         #c_fake = fake_aa_features + bead_features
         #c_real = real_aa_features + bead_features
-        print(fake_aa_features.size())
-        print(bead_features.size())
+        #print(fake_aa_features.size())
+        #print(bead_features.size())
         c_fake = torch.cat([fake_aa_features, bead_features], 1)
         c_real = torch.cat([real_aa_features, bead_features], 1)
 
