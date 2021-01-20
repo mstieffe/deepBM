@@ -528,7 +528,7 @@ class GAN_SEQ():
 
         for target_atom, target_type, aa_featvec, repl, mask in elems:
             #prepare input for generator
-            fake_aa_features = self.featurize(fake_atom_grid, aa_featvec)
+            fake_aa_features = self.featurize(fake_atom_grid, energy_ndx)
             #c_fake = fake_aa_features + cg_features
             c_fake = torch.cat([fake_aa_features, cg_features], 1)
 
