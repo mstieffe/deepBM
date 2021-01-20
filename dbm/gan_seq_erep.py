@@ -34,15 +34,15 @@ torch.set_default_dtype(torch.float32)
 
 
 class DS(Dataset):
-    def __init__(self, data, cfg):
+    def __init__(self, data, cfg, train=True):
 
         self.data = data
 
         generators = []
-        generators.append(Generator(data, hydrogens=False, gibbs=False, train=True, rand_rot=False))
-        generators.append(Generator(data, hydrogens=True, gibbs=False, train=True, rand_rot=False))
-        generators.append(Generator(data, hydrogens=False, gibbs=True, train=True, rand_rot=False))
-        generators.append(Generator(data, hydrogens=True, gibbs=True, train=True, rand_rot=False))
+        generators.append(Generator(data, hydrogens=False, gibbs=False, train=train, rand_rot=False))
+        generators.append(Generator(data, hydrogens=True, gibbs=False, train=train, rand_rot=False))
+        generators.append(Generator(data, hydrogens=False, gibbs=True, train=train, rand_rot=False))
+        generators.append(Generator(data, hydrogens=True, gibbs=True, train=train, rand_rot=False))
 
         self.elems = []
         for g in generators:
@@ -115,30 +115,35 @@ class GAN_SEQ():
         #Data pipeline
         self.data = Data(cfg, save=True)
         ds_train = DS(self.data, cfg)
-        self.loader_train = DataLoader(
-            ds_train,
-            batch_size=self.bs,
-            shuffle=True,
-            drop_last=False,
-            pin_memory=True,
-            num_workers=0,
-        )
-
+        if len(ds_train) != 0:
+            self.loader_train = DataLoader(
+                ds_train,
+                batch_size=self.bs,
+                shuffle=True,
+                drop_last=False,
+                pin_memory=True,
+                num_workers=0,
+            )
+        else:
+            self.loader_train = []
+        self.steps_per_epoch = int(len(self.loader_train) / (self.cfg.getint('training', 'n_critic') + 1))
+        print(len(self.loader_train), self.steps_per_epoch)
         self.ff = self.data.ff
-        self.grid = torch.from_numpy(ds_train.grid).to(self.device)
 
-        ds_val = DS(self.data, cfg)
-        loader_val = DataLoader(
-            ds_val,
-            batch_size=self.bs,
-            shuffle=True,
-            drop_last=False,
-            pin_memory=True,
-            num_workers=0,
-        )
-        self.loader_val = cycle(loader_val)
+        ds_val = DS(self.data, cfg, train=False)
+        if len(ds_val) != 0:
+            self.loader_val = DataLoader(
+                ds_val,
+                batch_size=self.bs,
+                shuffle=True,
+                drop_last=False,
+                pin_memory=True,
+                num_workers=0,
+            )
+        else:
+            self.loader_val = []
+        #self.loader_val = cycle(loader_val)
         self.val_data = ds_val.data
-
 
         self.n_gibbs = int(cfg.getint('validate', 'n_gibbs'))
 
@@ -159,12 +164,17 @@ class GAN_SEQ():
         )
         self.energy = Energy_torch(self.ff, self.device)
 
-        self.prior_weights = self.get_prior_weights()
-        self.lj_weight = cfg.getfloat('training', 'lj_weight')
-        self.covalent_weight = cfg.getfloat('training', 'covalent_weight')
-        self.energy_prior_mode = int(cfg.getint('training', 'energy_prior_mode'))
+        prior_weights = self.cfg.get('prior', 'weights')
+        self.prior_weights = [float(v) for v in prior_weights.split(",")]
+        prior_schedule = self.cfg.get('prior', 'schedule')
+        self.prior_schedule = np.array([0] + [int(v) for v in prior_schedule.split(",")])
 
-        self.w_prior = torch.tensor(self.prior_weights[self.step], dtype=torch.float32, device=device)
+        #self.prior_weights = self.get_prior_weights()
+        self.ratio_bonded_nonbonded = cfg.getfloat('prior', 'ratio_bonded_nonbonded')
+        #self.lj_weight = cfg.getfloat('training', 'lj_weight')
+        #self.covalent_weight = cfg.getfloat('training', 'covalent_weight')
+        self.prior_mode = cfg.get('prior', 'mode')
+        print(self.prior_mode)
 
         #Model selection
         if cfg.get('model', 'model_type') == "small":
@@ -195,33 +205,17 @@ class GAN_SEQ():
         self.restored_model = False
         self.restore_latest_checkpoint()
 
-    def get_prior_weights(self):
-        steps_per_epoch = len(self.loader_train)
-        tot_steps = steps_per_epoch * self.cfg.getint('training', 'n_epoch')
+    def prior_weight(self):
+        try:
+            ndx = next(x[0] for x in enumerate(self.prior_schedule) if x[1] > self.epoch) - 1
+        except:
+            ndx = len(self.prior_schedule) - 1
+        if ndx > 0 and self.prior_schedule[ndx] == self.epoch:
+            weight = self.prior_weights[ndx-1] + self.prior_weights[ndx] * (self.step - self.epoch*self.steps_per_epoch) / self.steps_per_epoch
+        else:
+            weight = self.prior_weights[ndx]
 
-        prior_weights = self.cfg.get('training', 'energy_prior_weights')
-        prior_weights = [float(v) for v in prior_weights.split(",")]
-        prior_steps = self.cfg.get('training', 'n_start_prior')
-        prior_steps = [int(v) for v in prior_steps.split(",")]
-        n_trans = self.cfg.getint('training', 'n_prior_transition')
-        weights = []
-        for s in range(self.step, self.step + tot_steps):
-            if s > prior_steps[-1]:
-                ndx = len(prior_weights)-1
-                #weights.append(self.energy_prior_values[-1])
-            else:
-                for n in range(0, len(prior_steps)):
-                    if s < prior_steps[n]:
-                        #weights.append(self.energy_prior_values[n])
-                        ndx = n
-                        break
-            #print(ndx)
-            if ndx > 0 and s < prior_steps[ndx-1] + self.cfg.getint('training', 'n_prior_transition'):
-                weights.append(prior_weights[ndx-1] + (prior_weights[ndx]-prior_weights[ndx-1])*(s-prior_steps[ndx-1])/n_trans)
-            else:
-                weights.append(prior_weights[ndx])
-
-        return weights
+        return weight
 
     def make_checkpoint(self):
         return self.out.make_checkpoint(
@@ -397,42 +391,48 @@ class GAN_SEQ():
     def train(self):
         steps_per_epoch = len(self.loader_train)
         n_critic = self.cfg.getint('training', 'n_critic')
-        n_save = int(self.cfg.getint('record', 'n_save'))
-        
+        n_save = int(self.cfg.getint('training', 'n_save'))
+
         epochs = tqdm(range(self.epoch, self.cfg.getint('training', 'n_epoch')))
         epochs.set_description('epoch: ')
         for epoch in epochs:
             n = 0
             loss_epoch = [[], [], [], [], [], [], []]
-            data = tqdm(self.loader_train, total=steps_per_epoch, leave=False)
-            for batch in data:
-                batch = self.map_to_device(batch)
-                elems, initial, energy_ndx = batch
+            data = tqdm(zip(self.loader_train, cycle(self.loader_val)), total=steps_per_epoch, leave=False)
+            for train_batch, val_batch in data:
+
+                train_batch = self.map_to_device(train_batch)
+                elems, initial, energy_ndx = train_batch
                 elems = self.transpose_and_zip(elems)
 
                 if n == n_critic:
                     g_loss_dict = self.train_step_gen(elems, initial, energy_ndx)
                     for key, value in g_loss_dict.items():
                         self.out.add_scalar(key, value, global_step=self.step)
-                    data.set_description('D: {}, G: {}, {}, {}, {}, {}, {}'.format(c_loss,
-                                                                                   g_loss_dict['Generator/wasserstein'],
-                                                                                   g_loss_dict['Generator/energy'],
-                                                                                   g_loss_dict['Generator/energy_bond'],
-                                                                                   g_loss_dict['Generator/energy_angle'],
-                                                                                   g_loss_dict['Generator/energy_dih'],
-                                                                                   g_loss_dict['Generator/energy_lj']))
+                    data.set_description('D: {}, G: {}, {}, {}, {}, {}, {}, {}'.format(c_loss,
+                                                                                       g_loss_dict[
+                                                                                           'Generator/wasserstein'],
+                                                                                       g_loss_dict['Generator/energy'],
+                                                                                       g_loss_dict[
+                                                                                           'Generator/energy_bond'],
+                                                                                       g_loss_dict[
+                                                                                           'Generator/energy_angle'],
+                                                                                       g_loss_dict[
+                                                                                           'Generator/energy_dih'],
+                                                                                       g_loss_dict[
+                                                                                           'Generator/energy_lj'],
+                                                                                       g_loss_dict[
+                                                                                           'Generator/prior_weight']))
 
                     for value, l in zip([c_loss] + list(g_loss_dict.values()), loss_epoch):
                         l.append(value)
 
-
-                    #track loss for val data
-                    val_batch = next(self.loader_val)
                     val_batch = self.map_to_device(val_batch)
                     elems, initial, energy_ndx = val_batch
                     elems = self.transpose_and_zip(elems)
-                    _ = self.train_step_gen(elems, initial, energy_ndx, backprop=False)
-
+                    g_loss_dict = self.train_step_gen(elems, initial, energy_ndx, backprop=False)
+                    for key, value in g_loss_dict.items():
+                        self.out.add_scalar(key, value, global_step=self.step, mode='val')
                     self.step += 1
                     n = 0
 
@@ -454,12 +454,10 @@ class GAN_SEQ():
 
             self.epoch += 1
 
-            if epoch % n_save == 0:
+            if self.epoch % n_save == 0:
                 self.make_checkpoint()
                 self.out.prune_checkpoints()
                 self.validate()
-
-
 
 
 
@@ -529,6 +527,10 @@ class GAN_SEQ():
             fake_aa_features = self.featurize(fake_atom_grid, aa_featvec)
             #c_fake = fake_aa_features + cg_features
             c_fake = torch.cat([fake_aa_features, cg_features], 1)
+
+            print("train step gen ")
+            print("ff_feat", fake_aa_features.size())
+            print("condition", c_fake.size())
 
             z = torch.empty(
                 [target_atom.shape[0], self.z_dim],
@@ -624,7 +626,9 @@ class GAN_SEQ():
             #update aa grids
             aa_grid = torch.where(repl[:,:,None,None,None], aa_grid, fake_atom)
 
-        generated_atoms = torch.stack(generated_atoms, dim=1)
+        #generated_atoms = torch.stack(generated_atoms, dim=1)
+        generated_atoms = torch.cat(generated_atoms, dim=1)
+
         generated_atoms_coords = avg_blob(
             generated_atoms,
             res=self.cfg.getint('grid', 'resolution'),
@@ -659,17 +663,18 @@ class GAN_SEQ():
         rot_mtxs_transposed = torch.from_numpy(rot_mtx_batch(self.bs, transpose=True)).to(self.device).float()
 
         data_generators = []
-        data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False)))
-        data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False, pad_seq=False)))
+        data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
+        data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
 
         for m in range(self.n_gibbs):
-            data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=True, train=False, rand_rot=False, pad_seq=False)))
-            data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=True, train=False, rand_rot=False, pad_seq=False)))
+            data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=True, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
+            data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=True, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
 
         try:
             self.generator.eval()
             self.critic.eval()
 
+            g = 0
             for data_gen in data_generators:
                 start = timer()
 
@@ -678,6 +683,9 @@ class GAN_SEQ():
 
                         aa_coords = torch.matmul(torch.from_numpy(d['aa_pos']).to(self.device).float(), rot_mtxs)
                         cg_coords = torch.matmul(torch.from_numpy(d['cg_pos']).to(self.device).float(), rot_mtxs)
+
+                        #aa_coords = torch.from_numpy(d['aa_pos']).to(self.device).float()
+                        #cg_coords = torch.from_numpy(d['cg_pos']).to(self.device).float()
 
                         aa_grid = self.to_voxel(aa_coords, grid, sigma)
                         cg_grid = self.to_voxel(cg_coords, grid, sigma)
@@ -695,18 +703,20 @@ class GAN_SEQ():
 
                         new_coords, energies = self.predict(elems, initial, energy_ndx)
 
-                        new_coords = np.squeeze(new_coords)
-                        energies = np.squeeze(energies)
-
                         ndx = energies.argmin()
+
                         new_coords = torch.matmul(new_coords[ndx], rot_mtxs_transposed[ndx])
+                        #new_coords = new_coords[ndx]
                         new_coords = new_coords.detach().cpu().numpy()
 
                         for c, a in zip(new_coords, d['atom_seq']):
+
                             a.pos = d['loc_env'].rot_back(c)
+                            #a.ref_pos = d['loc_env'].rot_back(c)
 
                 print(timer()-start)
-            stats.evaluate(train=False, subdir=str(self.epoch), save_samples=True)
+                stats.evaluate(train=False, subdir=str(self.epoch)+"_"+str(g), save_samples=True)
+                g += 1
             #reset atom positions
             for sample in self.data.samples_val:
                 #sample.write_gro_file(samples_dir / (sample.name + str(self.step) + ".gro"))
