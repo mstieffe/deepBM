@@ -532,10 +532,6 @@ class GAN_SEQ():
             #c_fake = fake_aa_features + cg_features
             c_fake = torch.cat([fake_aa_features, cg_features], 1)
 
-            print("train step gen ")
-            print("ff_feat", fake_aa_features.size())
-            print("condition", c_fake.size())
-
             z = torch.empty(
                 [target_atom.shape[0], self.z_dim],
                 dtype=torch.float32,
