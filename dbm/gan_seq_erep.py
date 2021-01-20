@@ -181,8 +181,8 @@ class GAN_SEQ():
         #Model selection
         if cfg.get('model', 'model_type') == "small":
             print("Using small model")
-            self.critic = model.AtomCrit_small(in_channels=self.ff.n_channels+1, fac=1, sn=self.cfg.getint('model', 'sn_crit'), device=device)
-            self.generator = model.AtomGen_small(self.z_and_label_dim, condition_n_channels=self.ff.n_channels, fac=1, sn=self.cfg.getint('model', 'sn_gen'), device=device)
+            self.critic = model.AtomCrit_small(in_channels=7+1, fac=1, sn=self.cfg.getint('model', 'sn_crit'), device=device)
+            self.generator = model.AtomGen_small(self.z_and_label_dim, condition_n_channels=7, fac=1, sn=self.cfg.getint('model', 'sn_gen'), device=device)
         else:
             print("Using big model")
             self.critic = model.AtomCrit2(in_channels=self.ff.n_channels + 1, fac=1,
