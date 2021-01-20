@@ -548,28 +548,35 @@ class GAN_SEQ():
             #critic
             critic_fake = self.critic(torch.cat([fake_atom, c_fake], dim=1))
 
-            #mask
+            # mask
             critic_fake = torch.squeeze(critic_fake) * mask
 
-            #loss
+            # loss
             g_wass += self.generator_loss(critic_fake)
-            #g_loss += g_wass
+            # g_loss += g_wass
 
+            # update aa grids
+            fake_atom_grid = torch.where(repl[:, :, None, None, None], fake_atom_grid, fake_atom)
+            real_atom_grid = torch.where(repl[:, :, None, None, None], real_atom_grid, target_atom[:, None, :, :, :])
 
-            #update aa grids
-            fake_atom_grid = torch.where(repl[:,:,None,None,None], fake_atom_grid, fake_atom)
-            real_atom_grid = torch.where(repl[:,:,None,None,None], real_atom_grid, target_atom[:, None, :, :, :])
-
-        if self.energy_prior_mode == 1:
-            b_loss, a_loss, d_loss, l_loss, b_energy, a_energy, d_energy, l_energy = self.energy_match_loss(real_atom_grid, fake_atom_grid, energy_ndx)
-            energy_loss = self.covalent_weight*(b_loss + a_loss + d_loss) + self.lj_weight * l_loss
+        if self.prior_mode == 'match':
+            b_loss, a_loss, d_loss, l_loss, b_energy, a_energy, d_energy, l_energy = self.energy_match_loss(
+                real_atom_grid, fake_atom_grid, energy_ndx)
+            energy_loss = (self.ratio_bonded_nonbonded * (b_loss + a_loss + d_loss) + l_loss) * self.prior_weight()
+            g_loss = g_wass + energy_loss
+        elif self.prior_mode == 'min':
+            b_energy, a_energy, d_energy, l_energy = self.energy_min_loss(fake_atom_grid, energy_ndx)
+            energy_loss = (self.ratio_bonded_nonbonded * (
+                        b_energy + a_energy + d_energy) + l_energy) * self.prior_weight()
+            g_loss = g_wass + energy_loss
         else:
             b_energy, a_energy, d_energy, l_energy = self.energy_min_loss(fake_atom_grid, energy_ndx)
+            energy_loss = (self.ratio_bonded_nonbonded * (
+                        b_energy + a_energy + d_energy) + l_energy) * self.prior_weight()
+            g_loss = g_wass
 
-            energy_loss = self.covalent_weight*(b_energy + a_energy + d_energy) + self.lj_weight * l_energy
-
-        g_loss = g_wass + self.prior_weights[self.step] * energy_loss
-        #g_loss = g_wass
+        # g_loss = g_wass + self.prior_weight() * energy_loss
+        # g_loss = g_wass
 
         if backprop:
             self.opt_generator.zero_grad()
@@ -581,7 +588,8 @@ class GAN_SEQ():
                        "Generator/energy_bond": b_energy.detach().cpu().numpy(),
                        "Generator/energy_angle": a_energy.detach().cpu().numpy(),
                        "Generator/energy_dih": d_energy.detach().cpu().numpy(),
-                       "Generator/energy_lj": l_energy.detach().cpu().numpy()}
+                       "Generator/energy_lj": l_energy.detach().cpu().numpy(),
+                       "Generator/prior_weight": self.prior_weight()}
 
         return g_loss_dict
 
