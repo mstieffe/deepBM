@@ -272,9 +272,9 @@ class GAN_SEQ():
 
         return torch.sum(feature_grid, 1)
 
-    def prepare_condition(self, fake_atom_grid, real_atom_grid, aa_featvec, bead_features):
-        fake_aa_features = self.featurize(fake_atom_grid, aa_featvec)
-        real_aa_features = self.featurize(real_atom_grid, aa_featvec)
+    def prepare_condition(self, fake_atom_grid, real_atom_grid, energy_ndx, bead_features):
+        fake_aa_features = self.featurize(fake_atom_grid, energy_ndx)
+        real_aa_features = self.featurize(real_atom_grid, energy_ndx)
         #c_fake = fake_aa_features + bead_features
         #c_real = real_aa_features + bead_features
         c_fake = torch.cat([fake_aa_features, bead_features], 1)
@@ -437,7 +437,7 @@ class GAN_SEQ():
                     n = 0
 
                 else:
-                    c_loss = self.train_step_critic(elems, initial)
+                    c_loss = self.train_step_critic(elems, initial, energy_ndx)
                     n += 1
 
             tqdm.write('epoch {} steps {} : D: {} G: {}, {}, {}, {}, {}, {}'.format(
@@ -461,7 +461,7 @@ class GAN_SEQ():
 
 
 
-    def train_step_critic(self, elems, initial):
+    def train_step_critic(self, elems, initial, energy_ndx):
         c_loss = torch.zeros([], dtype=torch.float32, device=self.device)
 
         aa_grid, cg_features = initial
@@ -473,7 +473,7 @@ class GAN_SEQ():
 
         for target_atom, target_type, aa_featvec, repl, mask in elems:
             #prepare input for generator
-            c_fake, c_real = self.prepare_condition(fake_atom_grid, real_atom_grid, aa_featvec, cg_features)
+            c_fake, c_real = self.prepare_condition(fake_atom_grid, real_atom_grid, energy_ndx, cg_features)
             z = torch.empty(
                 [target_atom.shape[0], self.z_dim],
                 dtype=torch.float32,
