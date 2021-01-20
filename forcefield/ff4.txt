@@ -1,0 +1,64 @@
+[general]
+; Name      nrexcl
+ff4           2
+[/general]
+
+[atom_types]
+;name	channel   mass      charge       sigma      epsilon
+C	    -1       12.0110     0.0000          0.3207      0.3519
+C_AR	-1       12.0110    -0.1150          0.3550      0.2940
+H	    -1        1.0080     0.0000          0.2318      0.3180
+H_AR	-1        1.0080     0.1150          0.2420      0.1260
+[/atom_types]
+
+[bond_types]
+; i     j	channel  func        b0          kb
+C      C	0        1       0.153000      1000.00
+C      H	1        1       0.110000      1000.00
+C_AR   C_AR	2     	 1       0.139000      1000.00
+C_AR   H_AR	1     	 1       0.108000      1000.00
+C      C_AR	3    	 1       0.151000      1000.00
+[/bond_types]
+
+[angle_types]
+; i     j      k	channel  func       th0         cth
+H      C      H		4       1       109.45       306.40
+C      C      H 	5       1       109.45       448.90
+C      C      C   	6     	1       111.00       530.30
+C_AR   C      H  	7       1       109.45       366.90
+C      C      C_AR 	8   	1       109.45       482.30
+C      C_AR   C_AR  	9   1       120.00       376.60
+C_AR   C_AR   C_AR  	10  	1       120.00       376.60
+C_AR   C_AR   H_AR  	11  	1       120.00       418.80
+[/angle_types]
+
+
+[dihedral_types]
+; i    j     k     l	channel func 
+C      C     C     C	12      1    0.0000   6.0000   3.0000
+H      C     C     C	12      1    0.0000   6.0000   3.0000
+C_AR   C_AR  C_AR  C_AR	13      2    0.0000 167.4000
+C_AR   C_AR  C_AR  C	13      2    0.0000 167.4000
+C_AR   C_AR  C_AR  H_AR	13      2    0.0000 167.4000
+[/dihedral_types]
+
+[lj_types]
+; i     j       channel
+C       C_AR    14
+C       H_AR    15
+C       C       14
+C       H       15
+C_AR    H_AR    15
+C_AR    C_AR    14
+C_AR    H       15
+H_AR    H_AR    16
+H_AR    H       16
+H       H       16
+[/lj_types]
+
+[bead_types]
+;name	channel
+B	17
+S	18
+[/bead_types]
+
