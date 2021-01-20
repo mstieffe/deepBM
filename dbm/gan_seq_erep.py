@@ -85,7 +85,6 @@ class DS(Dataset):
 
         cg_features = d['cg_feat'][:, :, None, None, None] * bead_grid[:, None, :, :, :]
         # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
-        print("cg feauters ", cg_features.shape)
         cg_features = np.sum(cg_features, 0)
 
         elems = (target_atom, d['target_type'], d['aa_feat'], d['repl'], d['mask'])
@@ -273,7 +272,7 @@ class GAN_SEQ():
 
         feature_grid = torch.stack([bond_grid, angle_grid, dih_grid, lj_grid], 1)
 
-        return torch.sum(feature_grid, 1)
+        return feature_grid
 
     def prepare_condition(self, fake_atom_grid, real_atom_grid, energy_ndx, bead_features):
         fake_aa_features = self.featurize(fake_atom_grid, energy_ndx)
