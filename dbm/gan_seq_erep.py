@@ -85,6 +85,7 @@ class DS(Dataset):
 
         cg_features = d['cg_feat'][:, :, None, None, None] * bead_grid[:, None, :, :, :]
         # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
+        print("cg feauters ", cg_features.shape)
         cg_features = np.sum(cg_features, 0)
 
         elems = (target_atom, d['target_type'], d['aa_feat'], d['repl'], d['mask'])
