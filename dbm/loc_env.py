@@ -114,6 +114,8 @@ class Top():
         bonds = {'all': [], 'heavy': [], 'predecessor': []}
         for bond in self.atom.mol.bonds:
             if self.atom in bond.atoms:
+                bond.atoms.remove(self.atom) #current atom should always be the first element in the atom list
+                bond.atoms = [self.atom] + bond.atoms
                 bonds['all'].append(bond)
                 if len(self.filter_heavy(bond.atoms)) == 2:
                     bonds['heavy'].append(bond)

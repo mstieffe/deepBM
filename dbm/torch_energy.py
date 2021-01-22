@@ -205,7 +205,7 @@ class Energy_torch():
         ndx2 = indices[:, :, 2]
         param_ndx = indices[:, :, 0]
 
-        print(param_ndx)
+        #print(param_ndx)
 
         param = self.bond_params[param_ndx]
         a_0 = param[:, :, 0, None, None, None]
@@ -233,7 +233,7 @@ class Energy_torch():
         return en
 
 
-    def angle_grid(self, pos_grid, atoms, indices):
+    def angle_grid1(self, pos_grid, atoms, indices):
         ndx2 = indices[:, :, 2]
         ndx3 = indices[:, :, 3]
 
@@ -270,6 +270,62 @@ class Energy_torch():
 
         en = torch.sum(en, dim=1)
 
+        #en = torch.exp(-en * 1000.0 / (self.avogadro_const * self.boltzmann_const*568))
+        #en_sum = torch.sum(en, dim=[1, 2, 3])[:, None, None, None] + 1E-12
+        #en_sum, _ = torch.max(en.view(en.size(0), -1), -1)
+        #en_sum = en_sum[:, None, None, None] + 1E-12
+        #print(en_sum)
+        #en = en / en_sum
+
+        return en
+
+    def angle_grid2(self, pos_grid, atoms, indices):
+        ndx1 = indices[:, :, 1]
+        ndx3 = indices[:, :, 3]
+
+        param_ndx = indices[:, :, 0]
+
+        param = self.angle_params[param_ndx]
+        a_0 = param[:, :, 0, None, None, None]
+        f_c = param[:, :, 1, None, None, None]
+
+        pos1 = torch.stack([a[n] for n, a in zip(ndx1, atoms)])[:,:,:, None, None, None]
+        pos3 = torch.stack([a[n] for n, a in zip(ndx3, atoms)])[:,:,:, None, None, None]
+
+        #print(pos2)
+        vec1 = pos1 - pos_grid
+        vec2 = pos3 - pos_grid
+
+        norm1 = vec1**2
+        norm1 = torch.sum(norm1, dim=2)
+        norm1 = torch.sqrt(norm1)
+        norm2 = vec2**2
+        norm2 = torch.sum(norm2, dim=2)
+        norm2 = torch.sqrt(norm2)
+        norm = norm1 * norm2
+
+        dot = vec1 * vec2
+        dot = torch.sum(dot, dim=2)
+
+        a = dot / norm
+        a = torch.clamp(a, -0.9999, 0.9999)
+
+        a = torch.acos(a)
+
+        en = f_c/2.0*(a - a_0)**2
+
+        en = torch.sum(en, dim=1)
+
+        #en = torch.exp(-en * 1000.0 / (self.avogadro_const * self.boltzmann_const*568))
+        #en_sum = torch.sum(en, dim=[1, 2, 3])[:, None, None, None] + 1E-12
+        #en_sum, _ = torch.max(en.view(en.size(0), -1), -1)
+        #en_sum = en_sum[:, None, None, None] + 1E-12
+        #print(en_sum)
+        #en = en / en_sum
+
+        return en
+
+    def energy_to_prop(self, en):
         en = torch.exp(-en * 1000.0 / (self.avogadro_const * self.boltzmann_const*568))
         #en_sum = torch.sum(en, dim=[1, 2, 3])[:, None, None, None] + 1E-12
         en_sum, _ = torch.max(en.view(en.size(0), -1), -1)
@@ -278,8 +334,6 @@ class Energy_torch():
         en = en / en_sum
 
         return en
-
-
 
     def dih_grid(self, pos_grid, atoms, indices):
         ndx2 = indices[:, :, 2]

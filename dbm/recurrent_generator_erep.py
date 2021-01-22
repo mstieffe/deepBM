@@ -46,7 +46,7 @@ class Generator():
                     d["aa_pos"] = self.pad2d(loc_env.atom_positions(), self.data.max['atoms_loc_env'])
 
                 target_pos, target_type, aa_feat, repl = [], [], [], []
-                bonds_ndx, angles_ndx, dihs_ndx, ljs_ndx = [], [], [], []
+                bonds_ndx, angles_ndx1, angles_ndx2, dihs_ndx, ljs_ndx = [], [], [], [], []
                 for atom in atom_seq_dict[bead]:
                     aa_f = sample.aa_features[atom]
 
@@ -62,13 +62,17 @@ class Generator():
                     if self.gibbs:
                         atom_featvec = self.pad2d(aa_f.fv_gibbs, self.data.max['atoms_loc_env'])
                         bonds_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['bonds'], self.data.max['bonds_per_atom']))
-                        angles_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['angles'], self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
+                        a1, a2 = self.prepare_angle_ndx(loc_env.index_dict[atom], aa_f.energy_ndx_gibbs['angles'])
+                        angles_ndx1.append(self.pad_energy_ndx(a1, self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
+                        angles_ndx2.append(self.pad_energy_ndx(a2, self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
                         dihs_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['dihs'], self.data.max['dihs_per_atom'], tuple([-1, 1, 2, 3, 4])))
                         ljs_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['ljs'], self.data.max['ljs_per_atom']))
                     else:
                         atom_featvec = self.pad2d(aa_f.fv_init, self.data.max['atoms_loc_env'])
                         bonds_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_init['bonds'], self.data.max['bonds_per_atom']))
-                        angles_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_init['angles'], self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
+                        a1, a2 = self.prepare_angle_ndx(loc_env.index_dict[atom], aa_f.energy_ndx_init['angles'])
+                        angles_ndx1.append(self.pad_energy_ndx(a1, self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
+                        angles_ndx2.append(self.pad_energy_ndx(a2, self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
                         dihs_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_init['dihs'], self.data.max['dihs_per_atom'], tuple([-1, 1, 2, 3, 4])))
                         ljs_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_init['ljs'], self.data.max['ljs_per_atom']))
 
@@ -79,12 +83,17 @@ class Generator():
                     r = self.pad1d(aa_f.repl, self.data.max['atoms_loc_env'], value=True)
                     repl.append(r)
 
+                d["bonds_ndx"] = np.array(list(set([i for sl in bonds_ndx for i in sl])), dtype=np.int64)
+                angle_ndx = angles_ndx1 + angles_ndx2
+                d["angles_ndx"] = np.array(list(set([i for sl in angle_ndx for i in sl])), dtype=np.int64)
+                d["dihs_ndx"] = np.array(list(set([i for sl in dihs_ndx for i in sl])), dtype=np.int64)
+                d["ljs_ndx"] = np.array(list(set([i for sl in ljs_ndx for i in sl])), dtype=np.int64)
 
-                d["bonds_ndx"] = np.array(bonds_ndx, dtype=np.int64)
-                d["angles_ndx"] = np.array(angles_ndx, dtype=np.int64)
-                d["dihs_ndx"] = np.array(dihs_ndx, dtype=np.int64)
-                d["ljs_ndx"] = np.array(ljs_ndx, dtype=np.int64)
-
+                d["bonds_ndx_atom"] = np.array(bonds_ndx, dtype=np.int64)
+                d["angles_ndx1_atom"] = np.array(angles_ndx1, dtype=np.int64)
+                d["angles_ndx2_atom"] = np.array(angles_ndx2, dtype=np.int64)
+                d["dihs_ndx_atom"] = np.array(dihs_ndx, dtype=np.int64)
+                d["ljs_ndx_atom"] = np.array(ljs_ndx, dtype=np.int64)
 
 
                 # Padding for recurrent training
@@ -123,6 +132,16 @@ class Generator():
             elems.append(e)
         return elems
 
+    def prepare_angle_ndx(self, ndx, angle_ndx):
+        angle_ndx1, angle_ndx2 = [], []
+        for t in angle_ndx:
+            if ndx == t[1]:
+                angle_ndx1.append(t)
+            elif ndx == t[3]:
+                angle_ndx1.append((t[0],t[3],t[2], t[1]))
+            else:
+                angle_ndx2.append(t)
+        return angle_ndx1, angle_ndx2
 
     def rand_rot_mat(self):
         #rotation axis
