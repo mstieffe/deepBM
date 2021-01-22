@@ -83,11 +83,11 @@ class Generator():
                     r = self.pad1d(aa_f.repl, self.data.max['atoms_loc_env'], value=True)
                     repl.append(r)
 
-                d["bonds_ndx"] = self.pad_energy_ndx(np.array(list(set([i for sl in bonds_ndx for i in sl])), dtype=np.int64), self.data.max['bonds_per_bead'])
+                d["bonds_ndx"] = np.array(self.pad_energy_ndx(list(set([i for sl in bonds_ndx for i in sl])), self.data.max['bonds_per_bead']), dtype=np.int64)
                 angle_ndx = angles_ndx1 + angles_ndx2
-                d["angles_ndx"] = self.pad_energy_ndx(np.array(list(set([i for sl in angle_ndx for i in sl])), dtype=np.int64), self.data.max['angles_per_bead'], tuple([-1, 1, 2, 3]))
-                d["dihs_ndx"] = self.pad_energy_ndx(np.array(list(set([i for sl in dihs_ndx for i in sl])), dtype=np.int64), self.data.max['dihs_per_bead'], tuple([-1, 1, 2, 3, 4]))
-                d["ljs_ndx"] = self.pad_energy_ndx(np.array(list(set([i for sl in ljs_ndx for i in sl])), dtype=np.int64), self.data.max['ljs_per_bead'])
+                d["angles_ndx"] = np.array(self.pad_energy_ndx(list(set([i for sl in angle_ndx for i in sl])), self.data.max['angles_per_bead'], tuple([-1, 1, 2, 3])), dtype=np.int64)
+                d["dihs_ndx"] = np.array(self.pad_energy_ndx(list(set([i for sl in dihs_ndx for i in sl])), self.data.max['dihs_per_bead'], tuple([-1, 1, 2, 3, 4])), dtype=np.int64)
+                d["ljs_ndx"] = np.array(self.pad_energy_ndx(list(set([i for sl in ljs_ndx for i in sl])), self.data.max['ljs_per_bead']), dtype=np.int64)
 
                 d["bonds_ndx_atom"] = np.array(bonds_ndx, dtype=np.int64)
                 d["angles_ndx1_atom"] = np.array(angles_ndx1, dtype=np.int64)
