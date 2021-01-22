@@ -922,6 +922,164 @@ class AtomCrit_small(nn.Module):
 
 
 
+class AtomGen_small16(nn.Module):
+    def __init__(
+        self,
+        z_dim,
+        condition_n_channels,
+        fac=1,
+        sn: int = 0,
+        device=None,
+    ):
+        super().__init__()
+        specnorm = _sn_to_specnorm(sn)
+        embed_condition_blocks = [
+            specnorm(
+                nn.Conv3d(
+                    in_channels=condition_n_channels,
+                    out_channels=_facify(64, fac),
+                    kernel_size=5,
+                    stride=1,
+                    padding=2,
+                )
+            ),
+            nn.GroupNorm(1, num_channels=_facify(64, fac)),
+            nn.LeakyReLU(),
+            Residual3DConvBlock(
+                _facify(64, fac), _facify(64, fac), kernel_size=3, stride=1, sn=sn
+            ),
+        ]
+        self.embed_condition = nn.Sequential(*tuple(embed_condition_blocks)).to(
+            device=device
+        )
+        self.downsample_cond = Residual3DConvBlock(
+            _facify(64, fac),
+            n_filters=_facify(64, fac),
+            kernel_size=3,
+            stride=2,
+            sn=sn,
+        )
+
+        self.embed_noise_label = EmbedNoise(z_dim, _facify(64, fac), sn=sn)
+        self.combined1 = GeneratorCombined3Block(
+            _facify(128, fac), _facify(64, fac), sn=sn
+        )
+        self.combined2 = GeneratorCombined3Block(
+            _facify(128, fac), _facify(64, fac), sn=sn
+        )
+
+        to_image_blocks = [
+            Residual3DConvBlock(
+                _facify(128, fac), _facify(64, fac), 3, 1, trans=True, sn=sn
+            ),
+            specnorm(nn.Conv3d(_facify(64, fac), 1, kernel_size=1, stride=1)),
+            nn.Sigmoid(),
+        ]
+        self.to_image = nn.Sequential(*tuple(to_image_blocks)).to(device=device)
+
+    def forward(self, z, l, c):
+        z_l = torch.cat((z, l), dim=1)
+
+        embedded_c = self.embed_condition(c)
+        down1 = self.downsample_cond(embedded_c)
+        down2 = self.downsample_cond(down1)
+
+
+        embedded_z_l = self.embed_noise_label(z_l)
+
+        out = self.combined1(embedded_z_l, down2)
+        out = self.combined2(out, down1)
+
+        out = torch.cat((out, embedded_c), dim=1)
+        out = self.to_image(out)
+
+        return out
+
+class AtomCrit_small16(nn.Module):
+    def __init__(
+        self, in_channels, fac=1, sn: int = 0, device=None
+    ):
+        super().__init__()
+        specnorm = _sn_to_specnorm(sn)
+        self.step1 = specnorm(
+            nn.Conv3d(
+                in_channels=in_channels,
+                out_channels=_facify(128, fac),
+                kernel_size=5,
+                stride=1,
+                padding=compute_same_padding(5, 1, 1),
+            )
+        )
+        self.step2 = nn.LeakyReLU()
+
+        self.step4 = Residual3DConvBlock(
+            in_channels=_facify(128, fac),
+            n_filters=_facify(256, fac),
+            kernel_size=3,
+            stride=2,
+            sn=sn,
+            device=device,
+        )
+
+        self.step5 = Residual3DConvBlock(
+            in_channels=_facify(256, fac),
+            n_filters=_facify(256, fac),
+            kernel_size=3,
+            stride=2,
+            sn=sn,
+            device=device,
+        )
+
+
+        self.step6 = specnorm(
+            nn.Conv3d(
+                in_channels=_facify(256, fac),
+                out_channels=_facify(256, fac),
+                kernel_size=3,
+                stride=1,
+                padding=compute_same_padding(3, 1, 1),
+            )
+        )
+        self.step7 = nn.GroupNorm(1, _facify(256, fac))
+        self.step8 = nn.LeakyReLU()
+
+        self.step9 = specnorm(
+            nn.Conv3d(
+                in_channels=_facify(256, fac),
+                out_channels=_facify(128, fac),
+                kernel_size=4,
+                stride=1,
+                padding=0,
+            )
+        )
+        self.step10 = nn.GroupNorm(1, _facify(128, fac))
+        self.step11 = nn.LeakyReLU()
+
+        self.to_critic_value = specnorm(
+            nn.Linear(
+                in_features=_facify(128, fac), out_features=1
+            )
+        )
+
+    def forward(self, inputs):
+        out = self.step1(inputs)
+        out = self.step2(out)
+        #out = self.step3(out)
+        out = self.step4(out)
+        out = self.step5(out)
+        #out = self.step5(out)
+        out = self.step6(out)
+        out = self.step7(out)
+        out = self.step8(out)
+        out = self.step9(out)
+        out = self.step10(out)
+        out = self.step11(out)
+        out = torch.flatten(out, start_dim=1, end_dim=-1)
+        out = self.to_critic_value(out)
+        return out
+
+
+
 class AtomCrit_dstr_small(nn.Module):
     def __init__(        self, in_channels_vox, in_channels_dstr, fac=1, sn: int = 0, device=None):
         super().__init__()

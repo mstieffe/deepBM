@@ -10,7 +10,11 @@ class Bead_Type():
 
 class Atom_Type():
 
+    index = 0
+
     def __init__(self, name, channel, mass, charge, sigma, epsilon):
+        self.index = Atom_Type.index
+        Atom_Type.index += 1
         self.name = name
         self.channel = int(channel)
         self.mass = float(mass)
@@ -110,7 +114,11 @@ class FF():
             name, channel, mass, charge, sigma, epsilon = line.split()
             self.n_channels = max(self.n_channels, int(channel) +1)
             self.atom_types[name] = Atom_Type(name, channel, mass, charge, sigma, epsilon)
-        self.n_atom_chns = len(set([atype.channel for atype in self.atom_types.values()]))
+        Atom_Type.index = 0
+        #self.n_atom_chns = len(set([atype.channel for atype in self.atom_types.values()]))
+        self.n_atom_chns = len(self.atom_types)
+        #self.atom_type_index_dict = dict(zip(list(self.atom_types.values()), range(0, self.n_atom_chns)))
+
 
         #generate LJ types
         self.lj_types = {}

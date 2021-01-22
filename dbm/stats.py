@@ -4,7 +4,7 @@ from pathlib import Path
 from scipy.stats import entropy
 from dbm.universe1 import *
 from dbm.fig import *
-from dbm.recurrent_generator import Generator
+#from dbm.recurrent_generator import Generator
 from itertools import islice
 import random
 import matplotlib.pyplot as plt

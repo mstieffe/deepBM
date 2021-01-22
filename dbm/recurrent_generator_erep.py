@@ -56,20 +56,20 @@ class Generator():
 
                     #target atom type
                     t_type = np.zeros(self.data.ff.n_atom_chns)
-                    t_type[atom.type.channel] = 1
+                    t_type[atom.type.index] = 1
                     target_type.append(t_type)
 
                     if self.gibbs:
                         atom_featvec = self.pad2d(aa_f.fv_gibbs, self.data.max['atoms_loc_env'])
                         bonds_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['bonds'], self.data.max['bonds_per_atom']))
-                        angles_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['angles'], self.data.max['angles_per_atom']))
-                        dihs_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['dihs'], self.data.max['dihs_per_atom']))
+                        angles_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['angles'], self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
+                        dihs_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['dihs'], self.data.max['dihs_per_atom'], tuple([-1, 1, 2, 3, 4])))
                         ljs_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['ljs'], self.data.max['ljs_per_atom']))
                     else:
-                        atom_featvec = self.pad2d(aa_f.fv_gibbs, self.data.max['atoms_loc_env'])
+                        atom_featvec = self.pad2d(aa_f.fv_init, self.data.max['atoms_loc_env'])
                         bonds_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_init['bonds'], self.data.max['bonds_per_atom']))
-                        angles_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_init['angles'], self.data.max['angles_per_atom']))
-                        dihs_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_init['dihs'], self.data.max['dihs_per_atom']))
+                        angles_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_init['angles'], self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
+                        dihs_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_init['dihs'], self.data.max['dihs_per_atom'], tuple([-1, 1, 2, 3, 4])))
                         ljs_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_init['ljs'], self.data.max['ljs_per_atom']))
 
                     #AA featurevector
@@ -79,10 +79,13 @@ class Generator():
                     r = self.pad1d(aa_f.repl, self.data.max['atoms_loc_env'], value=True)
                     repl.append(r)
 
+
                 d["bonds_ndx"] = np.array(bonds_ndx, dtype=np.int64)
                 d["angles_ndx"] = np.array(angles_ndx, dtype=np.int64)
                 d["dihs_ndx"] = np.array(dihs_ndx, dtype=np.int64)
                 d["ljs_ndx"] = np.array(ljs_ndx, dtype=np.int64)
+
+
 
                 # Padding for recurrent training
                 if self.pad_seq:
@@ -109,6 +112,7 @@ class Generator():
 
                 d['loc_env'] = loc_env
                 d['atom_seq'] = atom_seq_dict[bead]
+
 
                 yield d
 

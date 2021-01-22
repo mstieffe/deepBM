@@ -205,14 +205,13 @@ class Energy_torch():
         ndx2 = indices[:, :, 2]
         param_ndx = indices[:, :, 0]
 
+        print(param_ndx)
+
         param = self.bond_params[param_ndx]
         a_0 = param[:, :, 0, None, None, None]
         f_c = param[:, :, 1, None, None, None]
 
-
-
         pos2 = torch.stack([a[n] for n, a in zip(ndx2, atoms)])[:,:,:, None, None, None]
-
 
         dis = torch.sqrt(torch.sum((pos_grid - pos2)**2, dim=2))
 
@@ -224,8 +223,7 @@ class Energy_torch():
         en = en * f_c / 2.0
 
         en = torch.sum(en, dim=1)
-
-        en = torch.exp(-en * 1000.0 / (self.avogadro_const * self.boltzmann_const*350))
+        en = torch.exp(-en * 1000.0 / (self.avogadro_const * self.boltzmann_const*568))
         #en_sum = torch.sum(en, dim=[1, 2, 3])[:, None, None, None] + 1E-12
         en_sum, _ = torch.max(en.view(en.size(0), -1), -1)
         en_sum = en_sum[:, None, None, None] + 1E-12
@@ -272,7 +270,7 @@ class Energy_torch():
 
         en = torch.sum(en, dim=1)
 
-        en = torch.exp(-en * 1000.0 / (self.avogadro_const * self.boltzmann_const*350))
+        en = torch.exp(-en * 1000.0 / (self.avogadro_const * self.boltzmann_const*568))
         #en_sum = torch.sum(en, dim=[1, 2, 3])[:, None, None, None] + 1E-12
         en_sum, _ = torch.max(en.view(en.size(0), -1), -1)
         en_sum = en_sum[:, None, None, None] + 1E-12
@@ -304,7 +302,7 @@ class Energy_torch():
         vec2 = pos2 - pos3
         vec3 = pos4 - pos3
 
-        plane1 = torch.cross(vec1, vec2.repeat(1,1,1,8,8,8))
+        plane1 = torch.cross(vec1, vec2.repeat(1,1,1,16,16,16))
         plane2 = torch.cross(vec2, vec3)
 
         norm1 = plane1**2
@@ -334,12 +332,14 @@ class Energy_torch():
 
         en = torch.sum(en, dim=1)
 
-        en = torch.exp(-en * 1000.0 / (self.avogadro_const * self.boltzmann_const*350))
+        en = torch.exp(-en * 1000.0 / (self.avogadro_const * self.boltzmann_const*568))
         #en_sum = torch.sum(en, dim=[1, 2, 3])[:, None, None, None] + 1E-12
         en_sum, _ = torch.max(en.view(en.size(0), -1), -1)
         en_sum = en_sum[:, None, None, None] + 1E-12
         #print(en_sum)
+        #print(en)
         en = en / en_sum
+        #print(en)
 
         return en
 
@@ -379,7 +379,7 @@ class Energy_torch():
 
         en = torch.sum(en, dim=1)
 
-        en = torch.exp(-en * 1000.0 / (self.avogadro_const * self.boltzmann_const*350))
+        en = torch.exp(-en * 1000.0 / (self.avogadro_const * self.boltzmann_const*568))
         #en_sum = torch.sum(en, dim=[1, 2, 3])[:, None, None, None] + 1E-12
         en_sum, _ = torch.max(en.view(en.size(0), -1), -1)
         en_sum = en_sum[:, None, None, None] + 1E-12

@@ -61,7 +61,9 @@ class Generator():
 
                     #target atom type
                     t_type = np.zeros(self.data.ff.n_atom_chns)
-                    t_type[atom.type.channel] = 1
+                    t_type[atom.type.index] = 1
+
+                    #t_type[atom.type.channel] = 1
                     target_type.append(t_type)
 
                     if self.gibbs:

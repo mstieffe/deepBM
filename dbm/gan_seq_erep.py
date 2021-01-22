@@ -27,6 +27,8 @@ from shutil import copyfile
 from contextlib import redirect_stdout
 from operator import add
 from itertools import cycle
+import matplotlib.pyplot as plt
+
 
 #tf.compat.v1.disable_eager_execution()
 
@@ -40,9 +42,9 @@ class DS(Dataset):
 
         generators = []
         generators.append(Generator(data, hydrogens=False, gibbs=False, train=train, rand_rot=False))
-        generators.append(Generator(data, hydrogens=True, gibbs=False, train=train, rand_rot=False))
-        generators.append(Generator(data, hydrogens=False, gibbs=True, train=train, rand_rot=False))
-        generators.append(Generator(data, hydrogens=True, gibbs=True, train=train, rand_rot=False))
+        #generators.append(Generator(data, hydrogens=True, gibbs=False, train=train, rand_rot=False))
+        #generators.append(Generator(data, hydrogens=False, gibbs=True, train=train, rand_rot=False))
+        #generators.append(Generator(data, hydrogens=True, gibbs=True, train=train, rand_rot=False))
 
         self.elems = []
         for g in generators:
@@ -87,9 +89,12 @@ class DS(Dataset):
         # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
         cg_features = np.sum(cg_features, 0)
 
-        elems = (target_atom, d['target_type'], d['aa_feat'], d['repl'], d['mask'])
+        elems = (target_atom, d['target_type'], d['repl'], d['mask'], d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])
         initial = (atom_grid, cg_features)
         energy_ndx = (d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])
+
+        print(":::_______________:::::::::")
+        print(d['target_pos'])
 
         #print(d['ljs_ndx'].shape)
         #energy_ndx = (bonds_ndx, angles_ndx, dihs_ndx, ljs_ndx)
@@ -181,8 +186,12 @@ class GAN_SEQ():
         #Model selection
         if cfg.get('model', 'model_type') == "small":
             print("Using small model")
-            self.critic = model.AtomCrit_small(in_channels=7+1, fac=1, sn=self.cfg.getint('model', 'sn_crit'), device=device)
-            self.generator = model.AtomGen_small(self.z_and_label_dim, condition_n_channels=7, fac=1, sn=self.cfg.getint('model', 'sn_gen'), device=device)
+            if cfg.getint('grid', 'resolution') == 8:
+                self.critic = model.AtomCrit_small(in_channels=7+1, fac=1, sn=self.cfg.getint('model', 'sn_crit'), device=device)
+                self.generator = model.AtomGen_small(self.z_and_label_dim, condition_n_channels=7, fac=1, sn=self.cfg.getint('model', 'sn_gen'), device=device)
+            else:
+                self.critic = model.AtomCrit_small16(in_channels=7+1, fac=1, sn=self.cfg.getint('model', 'sn_crit'), device=device)
+                self.generator = model.AtomGen_small16(self.z_and_label_dim, condition_n_channels=7, fac=1, sn=self.cfg.getint('model', 'sn_gen'), device=device)
         else:
             print("Using big model")
             self.critic = model.AtomCrit2(in_channels=self.ff.n_channels + 1, fac=1,
@@ -255,8 +264,8 @@ class GAN_SEQ():
         elems = zip(*args)
         return elems
 
-    def featurize(self, grid, energy_ndx):
-        bond_ndx, angle_ndx, dih_ndx, lj_ndx = energy_ndx
+    def featurize(self, grid, bond_ndx, angle_ndx, dih_ndx, lj_ndx):
+        #bond_ndx, angle_ndx, dih_ndx, lj_ndx = energy_ndx
         coords = avg_blob(
             grid,
             res=self.cfg.getint('grid', 'resolution'),
@@ -274,9 +283,9 @@ class GAN_SEQ():
 
         return feature_grid
 
-    def prepare_condition(self, fake_atom_grid, real_atom_grid, energy_ndx, bead_features):
-        fake_aa_features = self.featurize(fake_atom_grid, energy_ndx)
-        real_aa_features = self.featurize(real_atom_grid, energy_ndx)
+    def prepare_condition(self, fake_atom_grid, real_atom_grid, bead_features, bond_ndx, angle_ndx, dih_ndx, lj_ndx):
+        fake_aa_features = self.featurize(fake_atom_grid, bond_ndx, angle_ndx, dih_ndx, lj_ndx)
+        real_aa_features = self.featurize(real_atom_grid, bond_ndx, angle_ndx, dih_ndx, lj_ndx)
         #c_fake = fake_aa_features + bead_features
         #c_real = real_aa_features + bead_features
         #print(fake_aa_features.size())
@@ -409,6 +418,8 @@ class GAN_SEQ():
                 elems, initial, energy_ndx = train_batch
                 elems = self.transpose_and_zip(elems)
 
+
+
                 if n == n_critic:
                     g_loss_dict = self.train_step_gen(elems, initial, energy_ndx)
                     for key, value in g_loss_dict.items():
@@ -475,14 +486,80 @@ class GAN_SEQ():
         real_atom_grid = aa_grid.clone()
 
 
-        for target_atom, target_type, aa_featvec, repl, mask in elems:
+        for target_atom, target_type, repl, mask, bond_ndx, angle_ndx, dih_ndx, lj_ndx in elems:
+            print(target_type)
+
             #prepare input for generator
-            c_fake, c_real = self.prepare_condition(fake_atom_grid, real_atom_grid, energy_ndx, cg_features)
+            c_fake, c_real = self.prepare_condition(fake_atom_grid, real_atom_grid, cg_features, bond_ndx, angle_ndx, dih_ndx, lj_ndx)
             z = torch.empty(
                 [target_atom.shape[0], self.z_dim],
                 dtype=torch.float32,
                 device=self.device,
             ).normal_()
+
+
+            #feature_grid = c_real.detach().cpu().numpy()
+
+            fig = plt.figure(figsize=(10, 10))
+            #_, _, nx, ny, nz = _feature_grid.shape
+            res = self.cfg.getint('grid', 'resolution')
+            nx, ny, nz = self.cfg.getint('grid', 'resolution'), self.cfg.getint('grid', 'resolution'), self.cfg.getint('grid', 'resolution')
+
+
+            target_coord = avg_blob(
+                target_atom,
+                res=self.cfg.getint('grid', 'resolution'),
+                width=self.cfg.getfloat('grid', 'length'),
+                sigma=self.cfg.getfloat('grid', 'sigma'),
+                device=self.device,
+            )
+            env_coords = avg_blob(
+                real_atom_grid,
+                res=self.cfg.getint('grid', 'resolution'),
+                width=self.cfg.getfloat('grid', 'length'),
+                sigma=self.cfg.getfloat('grid', 'sigma'),
+                device=self.device,
+            )
+            ds = self.cfg.getfloat('grid', 'length') / self.cfg.getint('grid', 'resolution')
+            print("t", target_coord)
+            for k in range(0, 2):
+                ax = fig.add_subplot(2, 3, k + 1, projection='3d')
+                ax.scatter(target_coord[0,0, 0], target_coord[0,0, 1], target_coord[0,0, 2], alpha=0.5,
+                           s=50, marker='o',
+                           c="red")
+                for x in range(0, nx):
+                    for y in range(0, ny):
+                        for zz in range(0, nz):
+                            if c_real[0, k, x, y, zz] > 0.9 and c_real[0, k, x, y, zz] < 1.1:
+                                ax.scatter((x + 0.5 -res/2)*ds, (y + 0.5-res/2)*ds, (zz + 0.5-res/2)*ds,
+                                           alpha=np.minimum(c_real[0, k, x, y, zz], 0.3), s=25, marker='o',
+                                           c="black")
+                #for c in env_coords[0]:
+                    #ax.scatter(c[0], c[1], c[2], s=25, marker='o', c="blue")
+
+                ax.set_xlim([-0.6, 0.6])
+                ax.set_ylim([-0.6, 0.6])
+                ax.set_zlim([-0.6, 0.6])
+
+
+            ax = fig.add_subplot(2, 3, 5, projection='3d')
+            for x in range(0, nx):
+                for y in range(0, ny):
+                    for zz in range(0, nz):
+                        if target_atom[0, x, y, zz] > 0.01 and target_atom[0, x, y, zz] < 0.05:
+                            ax.scatter((x + 0.5 -res/2)*ds, (y + 0.5-res/2)*ds, (zz + 0.5-res/2)*ds,
+                                       alpha=np.minimum(target_atom[0, x, y, zz], 1.0)+0.4, s=25, marker='o',
+                                       c="red")
+            ax.scatter(target_coord[0,0, 0], target_coord[0,0, 1], target_coord[0,0, 2],
+                       s=80, marker='o',
+                       c="blue")
+            ax.set_xlim([-0.6, 0.6])
+            ax.set_ylim([-0.6, 0.6])
+            ax.set_zlim([-0.6, 0.6])
+
+            # plt.savefig("lj_grid.pdf")
+            plt.show()
+
 
             #generate fake atom
             fake_atom = self.generator(z, target_type, c_fake)
@@ -526,9 +603,9 @@ class GAN_SEQ():
         fake_atom_grid = aa_grid.clone()
         real_atom_grid = aa_grid.clone()
 
-        for target_atom, target_type, aa_featvec, repl, mask in elems:
+        for target_atom, target_type, repl, mask, bond_ndx, angle_ndx, dih_ndx, lj_ndx in elems:
             #prepare input for generator
-            fake_aa_features = self.featurize(fake_atom_grid, energy_ndx)
+            fake_aa_features = self.featurize(fake_atom_grid, bond_ndx, angle_ndx, dih_ndx, lj_ndx)
             #c_fake = fake_aa_features + cg_features
             c_fake = torch.cat([fake_aa_features, cg_features], 1)
 
