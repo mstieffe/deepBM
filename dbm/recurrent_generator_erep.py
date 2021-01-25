@@ -89,12 +89,6 @@ class Generator():
                 d["dihs_ndx"] = np.array(self.pad_energy_ndx(list(set([i for sl in dihs_ndx for i in sl])), self.data.max['dihs_per_bead'], tuple([-1, 1, 2, 3, 4])), dtype=np.int64)
                 d["ljs_ndx"] = np.array(self.pad_energy_ndx(list(set([i for sl in ljs_ndx for i in sl])), self.data.max['ljs_per_bead']), dtype=np.int64)
 
-                d["bonds_ndx_atom"] = np.array(bonds_ndx, dtype=np.int64)
-                d["angles_ndx1_atom"] = np.array(angles_ndx1, dtype=np.int64)
-                d["angles_ndx2_atom"] = np.array(angles_ndx2, dtype=np.int64)
-                d["dihs_ndx_atom"] = np.array(dihs_ndx, dtype=np.int64)
-                d["ljs_ndx_atom"] = np.array(ljs_ndx, dtype=np.int64)
-
 
                 # Padding for recurrent training
                 if self.pad_seq:
@@ -103,6 +97,18 @@ class Generator():
                         target_type.append(target_type[-1])
                         aa_feat.append(np.zeros(aa_feat[-1].shape))
                         repl.append(np.ones(repl[-1].shape, dtype=bool))
+                        bonds_ndx.append(np.zeros(bonds_ndx[-1].shape))
+                        angles_ndx1.append(np.zeros(angles_ndx1[-1].shape))
+                        angles_ndx2.append(np.zeros(angles_ndx2[-1].shape))
+                        dihs_ndx.append(np.zeros(dihs_ndx[-1].shape))
+                        ljs_ndx.append(np.zeros(ljs_ndx[-1].shape))
+
+                d["bonds_ndx_atom"] = np.array(bonds_ndx, dtype=np.int64)
+                d["angles_ndx1_atom"] = np.array(angles_ndx1, dtype=np.int64)
+                d["angles_ndx2_atom"] = np.array(angles_ndx2, dtype=np.int64)
+                d["dihs_ndx_atom"] = np.array(dihs_ndx, dtype=np.int64)
+                d["ljs_ndx_atom"] = np.array(ljs_ndx, dtype=np.int64)
+
                 d["target_pos"] = np.array(target_pos, dtype=np.float32)
                 d["target_type"] = np.array(target_type, dtype=np.float32)
                 d["aa_feat"] = np.array(aa_feat, dtype=np.float32)
