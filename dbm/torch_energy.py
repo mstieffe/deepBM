@@ -230,6 +230,10 @@ class Energy_torch():
         #print(en_sum)
         #en = en / en_sum
 
+        t = torch.isnan(en)
+        t = torch.sum(t)
+        print("bpnd nan: ", t)
+
         return en
 
 
@@ -277,6 +281,10 @@ class Energy_torch():
         #print(en_sum)
         #en = en / en_sum
 
+        t = torch.isnan(en)
+        t = torch.sum(t)
+        print("angle1 nan: ", t)
+
         return en
 
     def angle_grid2(self, pos_grid, atoms, indices):
@@ -322,6 +330,10 @@ class Energy_torch():
         #en_sum = en_sum[:, None, None, None] + 1E-12
         #print(en_sum)
         #en = en / en_sum
+
+        t = torch.isnan(en)
+        t = torch.sum(t)
+        print("angle2 nan: ", t)
 
         return en
 
@@ -439,6 +451,10 @@ class Energy_torch():
         en_sum = en_sum[:, None, None, None] + 1E-12
         #print(en_sum)
         #en = en / en_sum
+
+        t = torch.isnan(en)
+        t = torch.sum(t)
+        print("lj nan: ", t)
 
         return en
 
