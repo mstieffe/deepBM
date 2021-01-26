@@ -46,7 +46,9 @@ class Generator():
                     d["aa_pos"] = self.pad2d(loc_env.atom_positions(), self.data.max['atoms_loc_env'])
 
                 target_pos, target_type, aa_feat, repl = [], [], [], []
-                bonds_ndx, angles_ndx1, angles_ndx2, dihs_ndx, ljs_ndx = [], [], [], [], []
+                bonds_ndx_pa, angles_ndx1_pa, angles_ndx2_pa, dihs_ndx_pa, ljs_ndx_pa = [], [], [], [], []
+                bonds_ndx, angles_ndx, dihs_ndx, ljs_ndx = [], [], [], []
+
                 for atom in atom_seq_dict[bead]:
                     aa_f = sample.aa_features[atom]
 
@@ -61,20 +63,28 @@ class Generator():
 
                     if self.gibbs:
                         atom_featvec = self.pad2d(aa_f.fv_gibbs, self.data.max['atoms_loc_env'])
-                        bonds_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['bonds'], self.data.max['bonds_per_atom']))
+                        bonds_ndx_pa.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['bonds'], self.data.max['bonds_per_atom']))
                         a1, a2 = self.prepare_angle_ndx(loc_env.index_dict[atom], aa_f.energy_ndx_gibbs['angles'])
-                        angles_ndx1.append(self.pad_energy_ndx(a1, self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
-                        angles_ndx2.append(self.pad_energy_ndx(a2, self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
-                        dihs_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['dihs'], self.data.max['dihs_per_atom'], tuple([-1, 1, 2, 3, 4])))
-                        ljs_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['ljs'], self.data.max['ljs_per_atom']))
+                        angles_ndx1_pa.append(self.pad_energy_ndx(a1, self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
+                        angles_ndx2_pa.append(self.pad_energy_ndx(a2, self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
+                        dihs_ndx_pa.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['dihs'], self.data.max['dihs_per_atom'], tuple([-1, 1, 2, 3, 4])))
+                        ljs_ndx_pa.append(self.pad_energy_ndx(aa_f.energy_ndx_gibbs['ljs'], self.data.max['ljs_per_atom']))
+                        bonds_ndx += aa_f.energy_ndx_gibbs['bonds']
+                        angles_ndx += aa_f.energy_ndx_gibbs['angles']
+                        dihs_ndx += aa_f.energy_ndx_gibbs['dihs']
+                        ljs_ndx += aa_f.energy_ndx_gibbs['ljs']
                     else:
                         atom_featvec = self.pad2d(aa_f.fv_init, self.data.max['atoms_loc_env'])
-                        bonds_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_init['bonds'], self.data.max['bonds_per_atom']))
+                        bonds_ndx_pa.append(self.pad_energy_ndx(aa_f.energy_ndx_init['bonds'], self.data.max['bonds_per_atom']))
                         a1, a2 = self.prepare_angle_ndx(loc_env.index_dict[atom], aa_f.energy_ndx_init['angles'])
-                        angles_ndx1.append(self.pad_energy_ndx(a1, self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
-                        angles_ndx2.append(self.pad_energy_ndx(a2, self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
-                        dihs_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_init['dihs'], self.data.max['dihs_per_atom'], tuple([-1, 1, 2, 3, 4])))
-                        ljs_ndx.append(self.pad_energy_ndx(aa_f.energy_ndx_init['ljs'], self.data.max['ljs_per_atom']))
+                        angles_ndx1_pa.append(self.pad_energy_ndx(a1, self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
+                        angles_ndx2_pa.append(self.pad_energy_ndx(a2, self.data.max['angles_per_atom'], tuple([-1, 1, 2, 3])))
+                        dihs_ndx_pa.append(self.pad_energy_ndx(aa_f.energy_ndx_init['dihs'], self.data.max['dihs_per_atom'], tuple([-1, 1, 2, 3, 4])))
+                        ljs_ndx_pa.append(self.pad_energy_ndx(aa_f.energy_ndx_init['ljs'], self.data.max['ljs_per_atom']))
+                        bonds_ndx += aa_f.energy_ndx_init['bonds']
+                        angles_ndx += aa_f.energy_ndx_init['angles']
+                        dihs_ndx += aa_f.energy_ndx_init['dihs']
+                        ljs_ndx += aa_f.energy_ndx_init['ljs']
 
                     #AA featurevector
                     aa_feat.append(atom_featvec)
@@ -83,12 +93,11 @@ class Generator():
                     r = self.pad1d(aa_f.repl, self.data.max['atoms_loc_env'], value=True)
                     repl.append(r)
 
-                d["bonds_ndx"] = np.array(self.pad_energy_ndx(list(set([i for sl in bonds_ndx for i in sl])), self.data.max['bonds_per_bead']), dtype=np.int64)
-                print(d["bonds_ndx"])
-                angle_ndx = angles_ndx1 + angles_ndx2
-                d["angles_ndx"] = np.array(self.pad_energy_ndx(list(set([i for sl in angle_ndx for i in sl])), self.data.max['angles_per_bead'], tuple([-1, 1, 2, 3])), dtype=np.int64)
-                d["dihs_ndx"] = np.array(self.pad_energy_ndx(list(set([i for sl in dihs_ndx for i in sl])), self.data.max['dihs_per_bead'], tuple([-1, 1, 2, 3, 4])), dtype=np.int64)
-                d["ljs_ndx"] = np.array(self.pad_energy_ndx(list(set([i for sl in ljs_ndx for i in sl])), self.data.max['ljs_per_bead']), dtype=np.int64)
+                #pad energy terms
+                d["bonds_ndx"] = np.array(self.pad_energy_ndx(bonds_ndx, self.data.max['bonds_per_bead']), dtype=np.int64)
+                d["angles_ndx"] = np.array(self.pad_energy_ndx(angles_ndx, self.data.max['angles_per_bead'], tuple([-1, 1, 2, 3])), dtype=np.int64)
+                d["dihs_ndx"] = np.array(self.pad_energy_ndx(dihs_ndx, self.data.max['dihs_per_bead'], tuple([-1, 1, 2, 3, 4])), dtype=np.int64)
+                d["ljs_ndx"] = np.array(self.pad_energy_ndx(ljs_ndx, self.data.max['ljs_per_bead']), dtype=np.int64)
 
 
                 # Padding for recurrent training
@@ -98,17 +107,17 @@ class Generator():
                         target_type.append(target_type[-1])
                         aa_feat.append(np.zeros(aa_feat[-1].shape))
                         repl.append(np.ones(repl[-1].shape, dtype=bool))
-                        bonds_ndx.append(np.zeros(np.array(bonds_ndx[-1]).shape))
-                        angles_ndx1.append(np.zeros(np.array(angles_ndx1[-1]).shape))
-                        angles_ndx2.append(np.zeros(np.array(angles_ndx2[-1]).shape))
-                        dihs_ndx.append(np.zeros(np.array(dihs_ndx[-1]).shape))
-                        ljs_ndx.append(np.zeros(np.array(ljs_ndx[-1]).shape))
+                        bonds_ndx_pa.append(np.zeros(np.array(bonds_ndx[-1]).shape))
+                        angles_ndx1_pa.append(np.zeros(np.array(angles_ndx1[-1]).shape))
+                        angles_ndx2_pa.append(np.zeros(np.array(angles_ndx2[-1]).shape))
+                        dihs_ndx_pa.append(np.zeros(np.array(dihs_ndx[-1]).shape))
+                        ljs_ndx_pa.append(np.zeros(np.array(ljs_ndx[-1]).shape))
 
-                d["bonds_ndx_atom"] = np.array(bonds_ndx, dtype=np.int64)
-                d["angles_ndx1_atom"] = np.array(angles_ndx1, dtype=np.int64)
-                d["angles_ndx2_atom"] = np.array(angles_ndx2, dtype=np.int64)
-                d["dihs_ndx_atom"] = np.array(dihs_ndx, dtype=np.int64)
-                d["ljs_ndx_atom"] = np.array(ljs_ndx, dtype=np.int64)
+                d["bonds_ndx_atom"] = np.array(bonds_ndx_pa, dtype=np.int64)
+                d["angles_ndx1_atom"] = np.array(angles_ndx1_pa, dtype=np.int64)
+                d["angles_ndx2_atom"] = np.array(angles_ndx2_pa, dtype=np.int64)
+                d["dihs_ndx_atom"] = np.array(dihs_ndx_pa, dtype=np.int64)
+                d["ljs_ndx_atom"] = np.array(ljs_ndx_pa, dtype=np.int64)
 
                 d["target_pos"] = np.array(target_pos, dtype=np.float32)
                 d["target_type"] = np.array(target_type, dtype=np.float32)
