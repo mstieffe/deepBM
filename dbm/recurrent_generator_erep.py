@@ -84,6 +84,7 @@ class Generator():
                     repl.append(r)
 
                 d["bonds_ndx"] = np.array(self.pad_energy_ndx(list(set([i for sl in bonds_ndx for i in sl])), self.data.max['bonds_per_bead']), dtype=np.int64)
+                print(d["bonds_ndx"])
                 angle_ndx = angles_ndx1 + angles_ndx2
                 d["angles_ndx"] = np.array(self.pad_energy_ndx(list(set([i for sl in angle_ndx for i in sl])), self.data.max['angles_per_bead'], tuple([-1, 1, 2, 3])), dtype=np.int64)
                 d["dihs_ndx"] = np.array(self.pad_energy_ndx(list(set([i for sl in dihs_ndx for i in sl])), self.data.max['dihs_per_bead'], tuple([-1, 1, 2, 3, 4])), dtype=np.int64)
