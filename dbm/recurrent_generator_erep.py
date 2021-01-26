@@ -128,6 +128,9 @@ class Generator():
                 d['loc_env'] = loc_env
                 d['atom_seq'] = atom_seq_dict[bead]
 
+                print(d["target_pos"].shape, d["aa_pos"].shape, d["cg_pos"].shape)
+                print(d["bonds_ndx_atom"].shape, d["angles_ndx1_atom"].shape, d["angles_ndx2_atom"].shape, d["dihs_ndx_atom"].shape, d["ljs_ndx_atom"].shape)
+                print(d["bonds_ndx"].shape, d["angles_ndx"].shape, d["dihs_ndx"].shape, d["ljs_ndx"].shape)
 
                 yield d
 
