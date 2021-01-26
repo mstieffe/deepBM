@@ -228,7 +228,7 @@ class Energy_torch():
         en_sum, _ = torch.max(en.view(en.size(0), -1), -1)
         en_sum = en_sum[:, None, None, None] + 1E-12
         #print(en_sum)
-        en = en / en_sum
+        #en = en / en_sum
 
         return en
 
@@ -331,7 +331,7 @@ class Energy_torch():
         en_sum, _ = torch.max(en.view(en.size(0), -1), -1)
         en_sum = en_sum[:, None, None, None] + 1E-12
         #print(en_sum)
-        en = en / en_sum
+        #en = en / en_sum
 
         return en
 
@@ -438,7 +438,7 @@ class Energy_torch():
         en_sum, _ = torch.max(en.view(en.size(0), -1), -1)
         en_sum = en_sum[:, None, None, None] + 1E-12
         #print(en_sum)
-        en = en / en_sum
+        #en = en / en_sum
 
         return en
 
