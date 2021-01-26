@@ -605,7 +605,8 @@ class GAN_SEQ():
             fake_atom_grid = torch.where(repl[:,:,None,None,None], fake_atom_grid, fake_atom)
             real_atom_grid = torch.where(repl[:,:,None,None,None], real_atom_grid, target_atom[:, None, :, :, :])
 
-        print(c_loss, c_eps, c_wass, c_gp)
+            print(c_loss)
+        #print(c_loss, c_eps, c_wass, c_gp)
         self.opt_critic.zero_grad()
         c_loss.backward()
         self.opt_critic.step()
