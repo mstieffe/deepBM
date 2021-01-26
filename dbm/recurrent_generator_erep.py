@@ -108,8 +108,8 @@ class Generator():
                         aa_feat.append(np.zeros(aa_feat[-1].shape))
                         repl.append(np.ones(repl[-1].shape, dtype=bool))
                         bonds_ndx_pa.append(np.zeros(np.array(bonds_ndx[-1]).shape))
-                        angles_ndx1_pa.append(np.zeros(np.array(angles_ndx1[-1]).shape))
-                        angles_ndx2_pa.append(np.zeros(np.array(angles_ndx2[-1]).shape))
+                        angles_ndx1_pa.append(np.zeros(np.array(angles_ndx1_pa[-1]).shape))
+                        angles_ndx2_pa.append(np.zeros(np.array(angles_ndx2_pa[-1]).shape))
                         dihs_ndx_pa.append(np.zeros(np.array(dihs_ndx[-1]).shape))
                         ljs_ndx_pa.append(np.zeros(np.array(ljs_ndx[-1]).shape))
 
