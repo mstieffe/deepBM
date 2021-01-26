@@ -138,9 +138,6 @@ class Generator():
                 d['loc_env'] = loc_env
                 d['atom_seq'] = atom_seq_dict[bead]
 
-                print(self.data.max['bonds_per_bead'])
-                print(d["bonds_ndx"].shape, d["angles_ndx"].shape, d["dihs_ndx"].shape, d["ljs_ndx"].shape)
-
                 yield d
 
     def all_elems(self):
