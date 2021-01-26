@@ -260,7 +260,7 @@ class Energy_torch():
         norm2 = vec2**2
         norm2 = torch.sum(norm2, dim=2)
         norm2 = torch.sqrt(norm2)
-        norm = norm1 * norm2
+        norm = norm1 * norm2 + 1E-12
 
         dot = vec1 * vec2
         dot = torch.sum(dot, dim=2)
@@ -315,7 +315,7 @@ class Energy_torch():
         dot = vec1 * vec2
         dot = torch.sum(dot, dim=2)
 
-        a = dot / norm
+        a = dot / norm + 1E-12
         a = torch.clamp(a, -0.9999, 0.9999)
 
         a = torch.acos(a)
