@@ -3,7 +3,7 @@ import math
 
 class Generator():
 
-    def __init__(self, data, train=False, hydrogens=False, gibbs=False, rand_rot=False, pad_seq=True):
+    def __init__(self, data, train=False, hydrogens=False, gibbs=False, rand_rot=False, pad_seq=True, ref_pos=True):
 
         self.data = data
         self.train = train
@@ -11,6 +11,7 @@ class Generator():
         self.gibbs = gibbs
         self.rand_rot = rand_rot
         self.pad_seq = pad_seq
+        self.ref_pos = ref_pos
 
         if train:
             self.samples = self.data.samples_train
@@ -40,7 +41,8 @@ class Generator():
                 d["cg_pos"] = np.array(self.pad2d(loc_env.bead_positions(), self.data.max['beads_loc_env']), dtype=np.float32)
 
                 #env atom positions
-                if self.train:
+                #env atom positions
+                if self.ref_pos:
                     d["aa_pos"] = self.pad2d(loc_env.atom_positions_ref(), self.data.max['atoms_loc_env'])
                 else:
                     d["aa_pos"] = self.pad2d(loc_env.atom_positions(), self.data.max['atoms_loc_env'])
