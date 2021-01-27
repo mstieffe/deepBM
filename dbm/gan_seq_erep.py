@@ -808,7 +808,7 @@ class GAN_SEQ():
                         #elems = (d['target_type'], d['aa_feat'], d['repl'])
                         elems = (d['target_type'], d['repl'], d['bonds_ndx_atom'], d['angles_ndx1_atom'], d['angles_ndx2_atom'], d['dihs_ndx_atom'], d['ljs_ndx_atom'])
                         #elems = self.transpose(self.insert_dim(self.to_tensor(elems)))
-                        elems = self.repeat(self.to_tensor(elems))
+                        elems = self.transpose(self.repeat(self.to_tensor(elems)))
 
                         for h in elems:
                             print(h.size())
