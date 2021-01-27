@@ -245,6 +245,7 @@ class GAN_SEQ():
         latest_ckpt = self.out.latest_checkpoint()
         if latest_ckpt is not None:
             checkpoint = torch.load(latest_ckpt)
+            #checkpoint = torch.load(latest_ckpt, map_location=torch.device('cpu'))
             self.generator.load_state_dict(checkpoint["generator"])
             self.critic.load_state_dict(checkpoint["critic"])
             self.opt_generator.load_state_dict(checkpoint["opt_generator"])
@@ -733,6 +734,89 @@ class GAN_SEQ():
             fake_atom = self.generator(z, target_type, c_fake)
             generated_atoms.append(fake_atom)
 
+            """
+            print(target_type)
+
+            env_coords = avg_blob(
+                aa_grid,
+                res=self.cfg.getint('grid', 'resolution'),
+                width=self.cfg.getfloat('grid', 'length'),
+                sigma=self.cfg.getfloat('grid', 'sigma'),
+                device=self.device,
+            )
+
+
+            ndx2 = bond_ndx[:, :, 2]
+            bond_atoms = [a[n] for n, a in zip(ndx2, env_coords)]
+            #feature_grid = c_real.detach().cpu().numpy()
+
+
+            fig = plt.figure(figsize=(10, 10))
+            #_, _, nx, ny, nz = _feature_grid.shape
+            res = self.cfg.getint('grid', 'resolution')
+            nx, ny, nz = self.cfg.getint('grid', 'resolution'), self.cfg.getint('grid', 'resolution'), self.cfg.getint('grid', 'resolution')
+
+
+            target_coord = avg_blob(
+                fake_atom,
+                res=self.cfg.getint('grid', 'resolution'),
+                width=self.cfg.getfloat('grid', 'length'),
+                sigma=self.cfg.getfloat('grid', 'sigma'),
+                device=self.device,
+            )
+
+            ds = self.cfg.getfloat('grid', 'length') / self.cfg.getint('grid', 'resolution')
+            for k in range(0, 3):
+                ax = fig.add_subplot(2, 3, k + 1, projection='3d')
+                ax.scatter(target_coord[0,0, 0], target_coord[0,0, 1], target_coord[0,0, 2], alpha=0.5,
+                           s=50, marker='o',
+                           c="red")
+
+                for a in bond_atoms:
+                    ax.scatter(a[0, 0], a[0, 1], a[0, 2], alpha=0.5,
+                               s=50, marker='o',
+                               c="yellow")
+
+
+                for x in range(0, nx):
+                    for y in range(0, ny):
+                        for zz in range(0, nz):
+                            if c_fake[0, k, x, y, zz] > 0.5 and c_fake[0, k, x, y, zz] < 1.1:
+                                ax.scatter((x + 0.5 -res/2)*ds, (y + 0.5-res/2)*ds, (zz + 0.5-res/2)*ds,
+                                           alpha=np.minimum(c_fake[0, k, x, y, zz].numpy(), 1.0), s=25, marker='o',
+                                           c="black")
+                #for c in env_coords[0]:
+                    #ax.scatter(c[0], c[1], c[2], s=25, marker='o', c="blue")
+
+                ax.set_xlim([-0.6, 0.6])
+                ax.set_ylim([-0.6, 0.6])
+                ax.set_zlim([-0.6, 0.6])
+
+
+            ax = fig.add_subplot(2, 3, 5, projection='3d')
+            for x in range(0, nx):
+                for y in range(0, ny):
+                    for zz in range(0, nz):
+                        if fake_atom[0,0, x, y, zz] > 0.01 and fake_atom[0,0, x, y, zz] < 0.05:
+                            ax.scatter((x + 0.5 -res/2)*ds, (y + 0.5-res/2)*ds, (zz + 0.5-res/2)*ds,
+                                       alpha=np.minimum(fake_atom[0,0, x, y, zz], 1.0).numpy()+0.4, s=25, marker='o',
+                                       c="red")
+            ax.scatter(target_coord[0,0, 0], target_coord[0,0, 1], target_coord[0,0, 2],
+                       s=80, marker='o',
+                       c="blue")
+            ax.set_xlim([-0.6, 0.6])
+            ax.set_ylim([-0.6, 0.6])
+            ax.set_zlim([-0.6, 0.6])
+
+            # plt.savefig("lj_grid.pdf")
+            plt.show()
+            """
+
+
+
+
+
+
             #update aa grids
             aa_grid = torch.where(repl[:,:,None,None,None], aa_grid, fake_atom)
 
@@ -773,8 +857,8 @@ class GAN_SEQ():
         rot_mtxs_transposed = torch.from_numpy(rot_mtx_batch(self.bs, transpose=True)).to(self.device).float()
 
         data_generators = []
-        data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=True)))
-        data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=True)))
+        data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
+        data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
 
         for m in range(self.n_gibbs):
             data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=True, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
