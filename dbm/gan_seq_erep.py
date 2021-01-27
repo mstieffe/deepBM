@@ -736,7 +736,7 @@ class GAN_SEQ():
 
             """
             print(target_type)
-
+            print(bond_ndx)
             env_coords = avg_blob(
                 aa_grid,
                 res=self.cfg.getint('grid', 'resolution'),
@@ -833,7 +833,7 @@ class GAN_SEQ():
 
         b_energy, a_energy, d_energy, l_energy = self.get_energies_from_grid(aa_grid, energy_ndx)
         energy = b_energy + a_energy + d_energy + l_energy
-
+        #print(b_energy, a_energy, d_energy, l_energy )
         return generated_atoms_coords, energy
 
     def validate(self, samples_dir=None):
@@ -899,7 +899,7 @@ class GAN_SEQ():
 
                         new_coords, energies = self.predict(elems, initial, energy_ndx)
 
-                        print(energies)
+                        #print(energies)
                         ndx = energies.argmin()
 
                         new_coords = torch.matmul(new_coords[ndx], rot_mtxs_transposed[ndx])
