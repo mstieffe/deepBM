@@ -899,6 +899,7 @@ class GAN_SEQ():
 
                         new_coords, energies = self.predict(elems, initial, energy_ndx)
 
+                        print(energies)
                         ndx = energies.argmin()
 
                         new_coords = torch.matmul(new_coords[ndx], rot_mtxs_transposed[ndx])
