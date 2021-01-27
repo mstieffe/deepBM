@@ -810,9 +810,6 @@ class GAN_SEQ():
                         #elems = self.transpose(self.insert_dim(self.to_tensor(elems)))
                         elems = self.transpose(self.repeat(self.to_tensor(elems)))
 
-                        for h in elems:
-                            print(h.size())
-
                         energy_ndx = (d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])
                         energy_ndx = self.repeat(self.to_tensor(energy_ndx))
 
