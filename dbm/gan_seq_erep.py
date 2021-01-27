@@ -706,6 +706,9 @@ class GAN_SEQ():
     def repeat(self, t):
         return tuple(torch.stack(self.bs*[x]) for x in t)
 
+    def repeat2(self, t):
+        return tuple(torch.cat(self.bs*[x]) for x in t)
+
     def to_voxel(self, coords, grid, sigma):
         coords = coords[..., None, None, None]
         return torch.exp(-1.0 * torch.sum((grid - coords) * (grid - coords), axis=2) / sigma).float()
@@ -715,10 +718,11 @@ class GAN_SEQ():
         aa_grid, cg_features = initial
 
         generated_atoms = []
-        for target_type, aa_featvec, repl in zip(*elems):
-            fake_aa_features = self.featurize(aa_grid, aa_featvec)
-            c_fake = fake_aa_features + cg_features
-            target_type = target_type.repeat(self.bs, 1)
+        for target_type, repl, bond_ndx, angle_ndx1, angle_ndx2, dih_ndx, lj_ndx in zip(*elems):
+            fake_aa_features = self.featurize(aa_grid, bond_ndx, angle_ndx1, angle_ndx2, dih_ndx, lj_ndx)
+            c_fake = torch.cat([fake_aa_features, cg_features], 1)
+            #target_type = target_type.repeat(self.bs, 1)
+            #print(target_type.size())
             z = torch.empty(
                 [target_type.shape[0], self.z_dim],
                 dtype=torch.float32,
@@ -801,8 +805,13 @@ class GAN_SEQ():
 
                         initial = (aa_grid, cg_features)
 
-                        elems = (d['target_type'], d['aa_feat'], d['repl'])
-                        elems = self.transpose(self.insert_dim(self.to_tensor(elems)))
+                        #elems = (d['target_type'], d['aa_feat'], d['repl'])
+                        elems = (d['target_type'], d['repl'], d['bonds_ndx_atom'], d['angles_ndx1_atom'], d['angles_ndx2_atom'], d['dihs_ndx_atom'], d['ljs_ndx_atom'])
+                        #elems = self.transpose(self.insert_dim(self.to_tensor(elems)))
+                        elems = self.repeat(self.to_tensor(elems))
+
+                        for h in elems:
+                            print(h.size())
 
                         energy_ndx = (d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])
                         energy_ndx = self.repeat(self.to_tensor(energy_ndx))
