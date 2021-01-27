@@ -1352,7 +1352,7 @@ class AtomGen_small16_drop(nn.Module):
                     padding=2,
                 )
             ),
-            nn.Dropout3d()
+            nn.Dropout3d(),
             nn.GroupNorm(1, num_channels=_facify(64, fac)),
             nn.LeakyReLU(),
             Residual3DConvBlock_drop(
