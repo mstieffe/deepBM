@@ -104,6 +104,91 @@ class Residual3DConvBlock(nn.Module):
         return result
 
 
+
+class Residual3DConvBlock_drop(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        n_filters,
+        kernel_size,
+        stride,
+        trans=False,
+        sn: int = 0,
+        device=None,
+    ):
+        super(Residual3DConvBlock_drop, self).__init__()
+        specnorm = _sn_to_specnorm(sn)
+        self.n_filters = n_filters
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.trans = trans
+
+        if self.stride != 1:
+            self.downsample = nn.Sequential(
+                nn.MaxPool3d(kernel_size=2, stride=2),
+                specnorm(
+                    nn.Conv3d(
+                        in_channels,
+                        out_channels=self.n_filters,
+                        kernel_size=1,
+                        stride=1,
+                        padding=0,
+                    )
+                ),
+            )
+        elif self.trans:
+            self.downsample = nn.Sequential(
+                specnorm(
+                    nn.Conv3d(
+                        in_channels,
+                        out_channels=self.n_filters,
+                        kernel_size=1,
+                        stride=1,
+                        padding=0,
+                    )
+                )
+            )
+        else:
+            self.downsample = nn.Identity()
+        self.downsample = self.downsample.to(device=device)
+
+        same_padding = compute_same_padding(self.kernel_size, self.stride, dilation=1)
+        block_elements = [
+            specnorm(
+                nn.Conv3d(
+                    in_channels=in_channels,
+                    out_channels=self.n_filters,
+                    kernel_size=self.kernel_size,
+                    stride=self.stride,
+                    padding=same_padding,
+                )
+            ),
+            nn.Dropout3d(),
+            nn.GroupNorm(1, num_channels=self.n_filters),
+            nn.LeakyReLU(),
+            specnorm(
+                nn.Conv3d(
+                    in_channels=self.n_filters,
+                    out_channels=self.n_filters,
+                    kernel_size=self.kernel_size,
+                    stride=1,
+                    padding=same_padding,
+                )
+            ),
+            nn.Dropout3d(),
+            nn.GroupNorm(1, num_channels=self.n_filters),
+        ]
+        self.block = nn.Sequential(*tuple(block_elements)).to(device=device)
+        self.nonlin = nn.LeakyReLU()
+
+    def forward(self, inputs):
+        out = self.block(inputs)
+        downsampled = self.downsample(inputs)
+        result = 0.5 * (out + downsampled)
+        result = self.nonlin(result)
+        return result
+
+
 class Residual3DDeconvBlock(nn.Module):
     def __init__(self, n_filters_in, n_filters, kernel_size, sn=0):
         super(Residual3DDeconvBlock, self).__init__()
@@ -1172,4 +1257,150 @@ class AtomCrit_dstr_small(nn.Module):
         out = self.step16(out)
         out = self.step17(out)
         out = self.to_critic_value(out)
+        return out
+
+
+
+class AtomGen_small_drop(nn.Module):
+    def __init__(
+        self,
+        z_dim,
+        condition_n_channels,
+        fac=1,
+        sn: int = 0,
+        device=None,
+    ):
+        super().__init__()
+        specnorm = _sn_to_specnorm(sn)
+        embed_condition_blocks = [
+            specnorm(
+                nn.Conv3d(
+                    in_channels=condition_n_channels,
+                    out_channels=_facify(128, fac),
+                    kernel_size=5,
+                    stride=1,
+                    padding=2,
+                )
+            ),
+            nn.Dropout3d(),
+            nn.GroupNorm(1, num_channels=_facify(128, fac)),
+            nn.LeakyReLU(),
+            Residual3DConvBlock_drop(
+                _facify(128, fac), _facify(128, fac), kernel_size=3, stride=1, sn=sn
+            ),
+        ]
+        self.embed_condition = nn.Sequential(*tuple(embed_condition_blocks)).to(
+            device=device
+        )
+        self.downsample_cond = Residual3DConvBlock_drop(
+            _facify(128, fac),
+            n_filters=_facify(128, fac),
+            kernel_size=3,
+            stride=2,
+            sn=sn,
+        )
+
+        self.embed_noise_label = EmbedNoise(z_dim, _facify(128, fac), sn=sn)
+        self.combined = GeneratorCombined3Block(
+            _facify(256, fac), _facify(128, fac), sn=sn
+        )
+
+        to_image_blocks = [
+            Residual3DConvBlock(
+                _facify(256, fac), _facify(64, fac), 3, 1, trans=True, sn=sn
+            ),
+            specnorm(nn.Conv3d(_facify(64, fac), 1, kernel_size=1, stride=1)),
+            nn.Sigmoid(),
+        ]
+        self.to_image = nn.Sequential(*tuple(to_image_blocks)).to(device=device)
+
+        self.dropout = nn.Dropout3d()
+
+    def forward(self, z, l, c):
+        z_l = torch.cat((z, l), dim=1)
+
+        embedded_c = self.embed_condition(c)
+        down = self.downsample_cond(embedded_c)
+
+        embedded_z_l = self.embed_noise_label(z_l)
+
+        out = self.combined(embedded_z_l, down)
+
+        out = torch.cat((out, embedded_c), dim=1)
+        out = self.to_image(out)
+
+        return out
+
+class AtomGen_small16_drop(nn.Module):
+    def __init__(
+        self,
+        z_dim,
+        condition_n_channels,
+        fac=1,
+        sn: int = 0,
+        device=None,
+    ):
+        super().__init__()
+        specnorm = _sn_to_specnorm(sn)
+        embed_condition_blocks = [
+            specnorm(
+                nn.Conv3d(
+                    in_channels=condition_n_channels,
+                    out_channels=_facify(64, fac),
+                    kernel_size=5,
+                    stride=1,
+                    padding=2,
+                )
+            ),
+            nn.Dropout3d()
+            nn.GroupNorm(1, num_channels=_facify(64, fac)),
+            nn.LeakyReLU(),
+            Residual3DConvBlock_drop(
+                _facify(64, fac), _facify(64, fac), kernel_size=3, stride=1, sn=sn
+            ),
+        ]
+        self.embed_condition = nn.Sequential(*tuple(embed_condition_blocks)).to(
+            device=device
+        )
+        self.downsample_cond = Residual3DConvBlock_drop(
+            _facify(64, fac),
+            n_filters=_facify(64, fac),
+            kernel_size=3,
+            stride=2,
+            sn=sn,
+        )
+
+        self.embed_noise_label = EmbedNoise(z_dim, _facify(64, fac), sn=sn)
+        self.combined1 = GeneratorCombined3Block(
+            _facify(128, fac), _facify(64, fac), sn=sn
+        )
+        self.combined2 = GeneratorCombined3Block(
+            _facify(128, fac), _facify(64, fac), sn=sn
+        )
+
+        to_image_blocks = [
+            Residual3DConvBlock(
+                _facify(128, fac), _facify(64, fac), 3, 1, trans=True, sn=sn
+            ),
+            specnorm(nn.Conv3d(_facify(64, fac), 1, kernel_size=1, stride=1)),
+            nn.Sigmoid(),
+        ]
+        self.to_image = nn.Sequential(*tuple(to_image_blocks)).to(device=device)
+
+    def forward(self, z, l, c):
+        z_l = torch.cat((z, l), dim=1)
+
+        embedded_c = self.embed_condition(c)
+        down1 = self.downsample_cond(embedded_c)
+        down2 = self.downsample_cond(down1)
+
+
+        embedded_z_l = self.embed_noise_label(z_l)
+
+        out = self.combined1(embedded_z_l, down2)
+        out = self.combined2(out, down1)
+
+        out = torch.cat((out, embedded_c), dim=1)
+        out = self.to_image(out)
+
         return out

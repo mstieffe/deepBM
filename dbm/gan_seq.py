@@ -175,14 +175,25 @@ class GAN_SEQ():
         #self.covalent_weight = cfg.getfloat('training', 'covalent_weight')
         self.prior_mode = cfg.get('prior', 'mode')
         print(self.prior_mode)
-        print("hhhhhhhhhhhh")
         #self.w_prior = torch.tensor(self.prior_weights[self.step], dtype=torch.float32, device=device)
 
         #Model selection
         if cfg.get('model', 'model_type') == "small":
             print("Using small model")
-            self.critic = model.AtomCrit_small(in_channels=self.ff.n_channels+1, fac=1, sn=self.cfg.getint('model', 'sn_crit'), device=device)
-            self.generator = model.AtomGen_small(self.z_and_label_dim, condition_n_channels=self.ff.n_channels, fac=1, sn=self.cfg.getint('model', 'sn_gen'), device=device)
+            if cfg.getint('grid', 'resolution') == 8:
+                self.critic = model.AtomCrit_small(in_channels=self.ff.n_channels+1, fac=1, sn=self.cfg.getint('model', 'sn_crit'), device=device)
+                self.generator = model.AtomGen_small(self.z_and_label_dim, condition_n_channels=self.ff.n_channels, fac=1, sn=self.cfg.getint('model', 'sn_gen'), device=device)
+            else:
+                self.critic = model.AtomCrit_small16(in_channels=self.ff.n_channels+1, fac=1, sn=self.cfg.getint('model', 'sn_crit'), device=device)
+                self.generator = model.AtomGen_small16(self.z_and_label_dim, condition_n_channels=self.ff.n_channels, fac=1, sn=self.cfg.getint('model', 'sn_gen'), device=device)
+        elif cfg.get('model', 'model_type') == "small_drop":
+            print("Using small model")
+            if cfg.getint('grid', 'resolution') == 8:
+                self.critic = model.AtomCrit_small(in_channels=self.ff.n_channels+1, fac=1, sn=self.cfg.getint('model', 'sn_crit'), device=device)
+                self.generator = model.AtomGen_small_drop(self.z_and_label_dim, condition_n_channels=self.ff.n_channels, fac=1, sn=self.cfg.getint('model', 'sn_gen'), device=device)
+            else:
+                self.critic = model.AtomCrit_small16(in_channels=self.ff.n_channels+1, fac=1, sn=self.cfg.getint('model', 'sn_crit'), device=device)
+                self.generator = model.AtomGen_small_drop16(self.z_and_label_dim, condition_n_channels=self.ff.n_channels, fac=1, sn=self.cfg.getint('model', 'sn_gen'), device=device)
         else:
             print("Using big model")
             self.critic = model.AtomCrit2(in_channels=self.ff.n_channels + 1, fac=1,
