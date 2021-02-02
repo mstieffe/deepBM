@@ -734,7 +734,7 @@ class GAN_SEQ():
             fake_atom = self.generator(z, target_type, c_fake)
             generated_atoms.append(fake_atom)
 
-            """
+
             print(target_type)
             print(bond_ndx)
             env_coords = avg_blob(
@@ -810,7 +810,7 @@ class GAN_SEQ():
 
             # plt.savefig("lj_grid.pdf")
             plt.show()
-            """
+
 
 
 
@@ -857,8 +857,8 @@ class GAN_SEQ():
         rot_mtxs_transposed = torch.from_numpy(rot_mtx_batch(self.bs, transpose=True)).to(self.device).float()
 
         data_generators = []
-        data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
-        data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
+        data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=True)))
+        data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=True)))
 
         for m in range(self.n_gibbs):
             data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=True, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))

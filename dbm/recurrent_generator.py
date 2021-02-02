@@ -1,7 +1,7 @@
 import numpy as np
 import math
 
-class Generator():
+class Recurrent_Generator():
 
     def __init__(self, data, train=False, hydrogens=False, gibbs=False, rand_rot=False, pad_seq=True, ref_pos=True):
 

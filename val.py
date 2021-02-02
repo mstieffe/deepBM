@@ -1,10 +1,6 @@
 from configparser import ConfigParser
-#from dbm.data import *
+from dbm.gan import *
 from dbm.gan_seq import *
-#from dbm.gan import *
-#from dbm.ff import *
-#import gan_seq
-#import gan
 import argparse
 
 
@@ -27,15 +23,14 @@ def main():
     args = parser.parse_args()
 
     config_file = args.config
-
-    cfg = ConfigParser()
+    cfg = ConfigParser(inline_comment_prefixes="#")
     cfg.read(config_file)
 
     #set up model
-    model = GAN_SEQ(device=device, cfg=cfg)
-
-    #with open('./' + name + '/config.ini', 'a') as f:
-    #    cfg.write(f)
+    if cfg.getboolean('training', 'recurrent'):
+        model = GAN_seq(device=device, cfg=cfg)
+    else:
+        model = GAN(device=device, cfg=cfg)
 
     #train
     model.validate(samples_dir="val")

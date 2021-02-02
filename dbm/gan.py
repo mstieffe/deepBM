@@ -1,495 +1,772 @@
-import tensorflow as tf
+import torch
+from torch.optim import Adam, RMSprop
+from torch.utils.data import Dataset, DataLoader
+from torch.autograd import Variable
+from torch.autograd import grad as torch_grad
+from dbm.util import make_grid_np, rand_rot_mtx, rot_mtx_batch, voxelize_gauss, make_dir, avg_blob, voxelize_gauss_batch
+from dbm.torch_energy import *
+from dbm.output import *
+from dbm.recurrent_generator import Recurrent_Generator
+from dbm.generator import Generator
+from tqdm import tqdm
 import numpy as np
 #from tqdm import tqdm
 from timeit import default_timer as timer
 import os
+import math
 #from configparser import ConfigParser
 #import mdtraj as md
 #from universe import *
 import dbm.model as model
-import dbm.tf_utils as tf_utils
-import dbm.tf_energy as tf_energy
+from dbm.data import *
+from dbm.stats import *
+from scipy import constants
+#import dbm.tf_utils as tf_utils
+#import dbm.tf_energy as tf_energy
 from copy import deepcopy
 from shutil import copyfile
 from contextlib import redirect_stdout
+from operator import add
+from itertools import cycle
+import gc
 
 #tf.compat.v1.disable_eager_execution()
-"""
-# ## Read config
-cfg = ConfigParser()
-cfg.read('config.ini')
 
-batchsize = cfg.getint('model', 'batchsize')
-z_dim = int(cfg.getint('model', 'noise_dim'))
-grid_size = cfg.getint('grid', 'max_resolution')
-ds = float(cfg.getfloat('grid', 'length')) / float(cfg.getint('grid', 'max_resolution'))
-sigma = cfg.getfloat('grid', 'sigma')
+torch.set_default_dtype(torch.float32)
 
-n_steps = cfg.getint('training', 'max_iters')
-n_critic = cfg.getint('training', 'n_critic')
-"""
+
+class DS(Dataset):
+    def __init__(self, data, cfg, train=True):
+
+        self.data = data
+
+        generators = []
+        generators.append(Generator(data, hydrogens=False, gibbs=False, train=train, rand_rot=False))
+        generators.append(Generator(data, hydrogens=True, gibbs=False, train=train, rand_rot=False))
+        generators.append(Generator(data, hydrogens=False, gibbs=True, train=train, rand_rot=False))
+        generators.append(Generator(data, hydrogens=True, gibbs=True, train=train, rand_rot=False))
+
+        self.elems = []
+        for g in generators:
+            self.elems += g.all_elems()
+
+        self.resolution = cfg.getint('grid', 'resolution')
+        self.delta_s = cfg.getfloat('grid', 'length') / cfg.getint('grid', 'resolution')
+        self.sigma = cfg.getfloat('grid', 'sigma')
+
+        if cfg.getboolean('training', 'rand_rot'):
+            self.rand_rot = True
+            print("using random rotations during training...")
+        else:
+            self.rand_rot = False
+        self.align = int(cfg.getboolean('universe', 'align'))
+
+        self.grid = make_grid_np(self.delta_s, self.resolution)
+
+
+    def __len__(self):
+        return len(self.elems)
+
+    def __getitem__(self, ndx):
+        if self.rand_rot:
+            R = rand_rot_mtx(self.data.align)
+        else:
+            R = np.eye(3)
+
+        d = self.elems[ndx]
+
+
+
+        #item = self.array(self.elems[ndx][1:], np.float32)
+        #target_pos, target_type, aa_feat, repl, mask, aa_pos, cg_pos, cg_feat, *energy_ndx = item
+        #energy_ndx = self.array(energy_ndx, np.int64)
+
+        target_atom = voxelize_gauss(np.dot(d['target_pos'], R.T), self.sigma, self.grid)
+        atom_grid = voxelize_gauss(np.dot(d['aa_pos'], R.T), self.sigma, self.grid)
+        bead_grid = voxelize_gauss(np.dot(d['cg_pos'], R.T), self.sigma, self.grid)
+
+        cg_features = d['cg_feat'][:, :, None, None, None] * bead_grid[:, None, :, :, :]
+        # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
+        cg_features = np.sum(cg_features, 0)
+
+        aa_features = d['aa_feat'][:, :, None, None, None] * atom_grid[:, None, :, :, :]
+        # (N_beads, N_chn, 1, 1, 1) * (N_beads, 1, N_x, N_y, N_z)
+        aa_features = np.sum(aa_features, 0)
+
+        features = cg_features + aa_features
+
+        elems = (features, target_atom, d['target_type'], atom_grid, d['repl'])
+        #initial = (atom_grid, cg_features)
+        energy_ndx = (d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])
+
+        #print(d['ljs_ndx'].shape)
+        #energy_ndx = (bonds_ndx, angles_ndx, dihs_ndx, ljs_ndx)
+
+        #return atom_grid, bead_grid, target_atom, target_type, aa_feat, repl, mask, energy_ndx
+        #return atom_grid, cg_features, target_atom, d['target_type'], d['aa_feat'], d['repl'], d['mask'], energy_ndx, d['aa_pos']
+        return elems, energy_ndx
+
+
+    def array(self, elems, dtype):
+        return tuple(np.array(t, dtype=dtype) for t in elems)
+
 class GAN():
 
-    def __init__(self, name, model_type, u_train, u_val, z_dim, bs, sigma, resolution, delta_s, rand_rot):
+    def __init__(self, device, cfg):
 
-        config = tf.compat.v1.ConfigProto()
-        config.gpu_options.allow_growth = True
-        session = tf.compat.v1.Session(config=config)
+        self.device = device
+        self.cfg = cfg
 
-        self.name = name
-
-        self.z_dim = z_dim
-        self.sigma = sigma
-        self.resolution = resolution
-        self.delta_s = delta_s
-
-        self.rand_rot = rand_rot
-
-
-        # Make Dirs for saving
-        self.model_dir = './' + self.name
-        self.checkpoint_dir = self.model_dir + '/checkpoints'
-        self.samples_dir = self.model_dir + '/samples'
-        self.logs_dir = self.model_dir + '/logs'
-        self.make_dir(self.model_dir)
-        self.make_dir(self.checkpoint_dir)
-        self.make_dir(self.samples_dir)
-        self.make_dir(self.logs_dir)
-
-        print("Model dir:", self.model_dir)
-        print("Checkpoint dir:", self.checkpoint_dir)
-        print("Samples dir:", self.samples_dir)
-        print("Logs dir:", self.logs_dir)
+        self.bs = self.cfg.getint('training', 'batchsize')
 
         #Data pipeline
-        self.u_train = u_train
-        self.u_val = u_val
+        self.data = Data(cfg, save=True)
+        ds_train = DS(self.data, cfg)
+        if len(ds_train) != 0:
+            self.loader_train = DataLoader(
+                ds_train,
+                batch_size=self.bs,
+                shuffle=True,
+                drop_last=False,
+                pin_memory=True,
+                num_workers=0,
+            )
+        else:
+            self.loader_train = []
+        self.steps_per_epoch = int(len(self.loader_train) / (self.cfg.getint('training', 'n_critic') + 1))
+        print(len(self.loader_train), self.steps_per_epoch)
+        self.ff = self.data.ff
 
-        #data_generator = lambda: self.u_train.generator(train=True, mode="init", rand_rot=rand_rot)
-        data_generator = lambda: self.u_train.generator_combined(train=True, rand_rot=rand_rot)
+        ds_val = DS(self.data, cfg, train=False)
+        if len(ds_val) != 0:
+            self.loader_val = DataLoader(
+                ds_val,
+                batch_size=self.bs,
+                shuffle=True,
+                drop_last=False,
+                pin_memory=True,
+                num_workers=0,
+            )
+        else:
+            self.loader_val = []
+        #self.loader_val = cycle(loader_val)
+        self.val_data = ds_val.data
 
-        ds_train = tf.data.Dataset.from_generator(data_generator, output_types=(tf.float32,   # target position
-                                                                              tf.float32,   # target type
-                                                                              tf.float32,   # env atoms positions
-                                                                              tf.float32,   # env atoms features
-                                                                              tf.float32,   # env beads positions
-                                                                              tf.float32,   # env bead features
-                                                                                tf.bool,  # replace vector
-                                                                                tf.int32,  # bond indices
-                                                                                tf.int32,  # angle indices
-                                                                                tf.int32,  # dih indices
-                                                                                tf.int32))  # lj indices
+        self.n_gibbs = int(cfg.getint('validate', 'n_gibbs'))
 
+        #model
+        self.name = cfg.get('model', 'name')
+        self.z_dim = int(cfg.getint('model', 'noise_dim'))
+        self.n_atom_chns = self.ff.n_atom_chns
+        self.z_and_label_dim = self.z_dim + self.n_atom_chns
 
-        ds_train = ds_train.batch(bs, drop_remainder=True)
-        ds_train = ds_train.map(lambda target_pos, target_type, atom_pos, atom_featvec, bead_pos, bead_featvec, repl, b_ndx, a_ndx, d_ndx, lj_ndx: (
-            tf_utils.prepare_target(target_pos, target_type, self.sigma, self.resolution, self.delta_s),
-            target_type,
-            tf_utils.prepare_grid(atom_pos, atom_featvec, bead_pos, bead_featvec, self.sigma, self.resolution, self.delta_s),
-            repl,
-            atom_pos,
-            (b_ndx,     # (BS, 3, n_bonds)
-             a_ndx,     # (BS, 4, n_angles)
-             d_ndx,     # (BS, 5, n_dihs)
-             lj_ndx)))  # (BS, 3, n_ljs)
-        ds_train = ds_train.repeat()
-        ds_train = ds_train.prefetch(tf.data.experimental.AUTOTUNE)
+        self.step = 0
+        self.epoch = 0
 
-        self.ds_iter = iter(ds_train)
+        # Make Dirs for saving
+        self.out = OutputHandler(
+            self.name,
+            self.cfg.getint('training', 'n_checkpoints'),
+            self.cfg.get('model', 'output_dir'),
+        )
+        self.energy = Energy_torch(self.ff, self.device)
 
-        self.n_atom_chns = u_train.ff.n_atom_chns
+        prior_weights = self.cfg.get('prior', 'weights')
+        self.prior_weights = [float(v) for v in prior_weights.split(",")]
+        prior_schedule = self.cfg.get('prior', 'schedule')
+        self.prior_schedule = np.array([0] + [int(v) for v in prior_schedule.split(",")])
 
-        #forcefield for energy loss
-        self.ff = self.u_train.ff
-        self.bond_params = tf.constant(self.ff.bond_params(), tf.float32)
-        self.angle_params = tf.constant(self.ff.angle_params(), tf.float32)
-        self.dih_params = tf.constant(self.ff.dih_params(), tf.float32)
-        self.lj_params = tf.constant(self.ff.lj_params(), tf.float32)
+        #self.prior_weights = self.get_prior_weights()
+        self.ratio_bonded_nonbonded = cfg.getfloat('prior', 'ratio_bonded_nonbonded')
+        #self.lj_weight = cfg.getfloat('training', 'lj_weight')
+        #self.covalent_weight = cfg.getfloat('training', 'covalent_weight')
+        self.prior_mode = cfg.get('prior', 'mode')
+        print(self.prior_mode)
+        #self.w_prior = torch.tensor(self.prior_weights[self.step], dtype=torch.float32, device=device)
+
         #Model selection
-        if model_type == "Deep_g8":
-            self.critic = model.Critic_8(name="Critic")
-            self.generator = model.Generator_8(self.n_atom_chns, self.z_dim, name="Generator")
-        elif model_type == "Deep_g16":
-            self.critic = model.Critic(name="Critic")
-            self.generator = model.Generator(self.n_atom_chns, self.z_dim, name="Generator")
-        else:
-            self.critic = model.Critic_8(name="Critic")
-            self.generator = model.Generator_8(self.n_atom_chns, self.z_dim, name="Generator")
-
-        #Optimizer
-        self.gen_opt = tf.keras.optimizers.Adam(0.00005, beta_1=.0, beta_2=.9)
-        self.crit_opt = tf.keras.optimizers.Adam(0.0001, beta_1=.0, beta_2=.9)
-
-        #Summaries and checkpoints
-        self.summary_writer = tf.summary.create_file_writer(self.logs_dir)
-        self.checkpoint_critic = tf.train.Checkpoint(optimizer=self.crit_opt, model=self.critic)
-        self.checkpoint_manager_critic = tf.train.CheckpointManager(self.checkpoint_critic, self.checkpoint_dir+"/crit", max_to_keep=2)
-        self.checkpoint_gen = tf.train.Checkpoint(optimizer=self.gen_opt, model=self.generator, step=tf.Variable(1))
-        self.checkpoint_manager_gen = tf.train.CheckpointManager(self.checkpoint_gen, self.checkpoint_dir+"/gen", max_to_keep=2)
-
-        #loss dict
-        self.loss_dict = {
-            "critic_tot": [],
-            "critic_wass": [],
-            "critic_gp": [],
-            "critic_eps": [],
-            "gen_tot": [],
-            "gen_wass": [],
-            "gen_com": [],
-            "gen_bond": [],
-            "gen_angle": [],
-            "gen_dih": [],
-            "gen_lj": []
-        }
-
-        #Restore old checkpoint if available
-        status_critic = self.checkpoint_critic.restore(self.checkpoint_manager_critic.latest_checkpoint)
-        status_gen = self.checkpoint_gen.restore(self.checkpoint_manager_gen.latest_checkpoint)
-        if self.checkpoint_manager_gen.latest_checkpoint:
-            print("Restored Generator from {}".format(self.checkpoint_manager_gen.latest_checkpoint))
-        else:
-            print("Initializing Generator from scratch.")
-        if self.checkpoint_manager_critic.latest_checkpoint:
-            print("Restored Critic from {}".format(self.checkpoint_manager_critic.latest_checkpoint))
-        else:
-            print("Initializing Critic from scratch.")
-
-        #Metrics for log
-        self.c_metrics = [('critic/loss', tf.keras.metrics.Mean()), ('critic/wass', tf.keras.metrics.Mean()),
-                     ('critic/grad', tf.keras.metrics.Mean()), ('critic/eps', tf.keras.metrics.Mean())]
-        self.g_metrics = [('generator/tot_loss', tf.keras.metrics.Mean()),
-                          ('generator/w_loss', tf.keras.metrics.Mean()),
-                          ('generator/b_loss', tf.keras.metrics.Mean()),
-                          ('generator/a_loss', tf.keras.metrics.Mean()),
-                          ('generator/d_loss', tf.keras.metrics.Mean()),
-                          ('generator/lj_loss', tf.keras.metrics.Mean())]
-
-    def train(self, energy_prior, n_start_prior, n_fade_in_prior, n_steps, n_steps_pre, n_critic, n_tensorboard, n_save, n_val, n_gibbs, bm_mode):
-
-        print("Training for n_steps={}, n_critic={}".format(n_steps, n_critic))
-        #copyfile("./config.ini", self.logs_dir + "/config_" + str(self.checkpoint_gen.step.numpy()) + ".ini")
-        with open('./' + self.name + '/config.ini', 'a') as f:
-            f.write("# started at step: " + str(self.checkpoint_gen.step.numpy()))
-
-        if int(self.checkpoint_gen.step) == 1:
-            print("pretraining...")
-            for step in range(1, n_steps_pre+1):
-                real_atom, target_label, env, _, _, _ = next(self.ds_iter)
-                g_loss_super, b_loss, a_loss, d_loss, l_loss = self.train_step_generator_supervised(real_atom, env, target_label)
-                c_loss, c_loss_wass, c_loss_grad, c_loss_eps = self.train_step_critic(real_atom, env, target_label)
-                print("step ", step, g_loss_super.numpy(), b_loss.numpy(), a_loss.numpy(), d_loss.numpy(), l_loss.numpy(), "C: ", c_loss.numpy(), c_loss_wass.numpy(), c_loss_grad.numpy(), c_loss_eps.numpy())
-
-
-        prior_weight = tf.Variable(0.0)
-
-        for step in range(1, n_steps+1):
-
-            # train critic
-            start = timer()
-            for i_critic in range(n_critic):
-                real_atom, target_label, env, _, _, _ = next(self.ds_iter)
-                c_loss, c_loss_wass, c_loss_grad, c_loss_eps = self.train_step_critic(real_atom, env, target_label)
-
-                for (_, metric), loss in zip(self.c_metrics, [c_loss, c_loss_wass, c_loss_grad, c_loss_eps]):
-                    metric(loss)
-
-
-            # train generator
-            if energy_prior and int(self.checkpoint_gen.step) >= n_start_prior:
-                if int(self.checkpoint_gen.step) < n_start_prior + n_fade_in_prior:
-                    prior_weight.assign(0.01 * (int(self.checkpoint_gen.step) - n_start_prior)/n_fade_in_prior)
-                else:
-                    prior_weight.assign(0.01)
+        if cfg.get('model', 'model_type') == "tiny":
+            print("Using tiny model")
+            if cfg.getint('grid', 'resolution') == 8:
+                self.critic = model.AtomCrit_tiny(in_channels=self.ff.n_channels+1,
+                                                  start_channels=self.cfg.getint('model', 'n_chns'),
+                                                  fac=1, sn=self.cfg.getint('model', 'sn_crit'),
+                                                  device=device)
+                self.generator = model.AtomGen_tiny(z_dim=self.z_and_label_dim,
+                                                    in_channels=self.ff.n_channels,
+                                                    start_channels=self.cfg.getint('model', 'n_chns'),
+                                                    fac=1,
+                                                    sn=self.cfg.getint('model', 'sn_gen'),
+                                                    device=device)
             else:
-                prior_weight.assign(0.0)
-            real_atom, target_label, env, repl, real_coords, energy_ndx = next(self.ds_iter)
-            _, g_loss_tot, g_loss_w, b_loss, a_loss, d_loss, l_loss = self.train_step_generator(env, target_label, repl, real_coords, energy_ndx, prior_weight)
-            for (_, metric), loss in zip(self.g_metrics, [g_loss_tot, g_loss_w, b_loss, a_loss, d_loss, l_loss]):
-                metric(loss)
+                self.critic = model.AtomCrit_tiny16(in_channels=self.ff.n_channels+1,
+                                                  start_channels=self.cfg.getint('model', 'n_chns'),
+                                                  fac=1, sn=self.cfg.getint('model', 'sn_crit'),
+                                                  device=device)
+                self.generator = model.AtomGen_tiny16(z_dim=self.z_and_label_dim,
+                                                    in_channels=self.ff.n_channels,
+                                                    start_channels=self.cfg.getint('model', 'n_chns'),
+                                                    fac=1,
+                                                    sn=self.cfg.getint('model', 'sn_gen'),
+                                                    device=device)
+        elif cfg.get('model', 'model_type') == "big":
+            print("Using big model")
+            if cfg.getint('grid', 'resolution') == 8:
+                self.critic = model.AtomCrit_tiny(in_channels=self.ff.n_channels+1,
+                                                  start_channels=self.cfg.getint('model', 'n_chns'),
+                                                  fac=1, sn=self.cfg.getint('model', 'sn_crit'),
+                                                  device=device)
+                self.generator = model.AtomGen_tiny(z_dim=self.z_and_label_dim,
+                                                    in_channels=self.ff.n_channels,
+                                                    start_channels=self.cfg.getint('model', 'n_chns'),
+                                                    fac=1,
+                                                    sn=self.cfg.getint('model', 'sn_gen'),
+                                                    device=device)
+            else:
+                raise Exception('big model not implemented for resolution of 16')
+        else:
+            print("Using regular model")
+            if cfg.getint('grid', 'resolution') == 8:
+                self.critic = model.AtomCrit(in_channels=self.ff.n_channels+1,
+                                                  start_channels=self.cfg.getint('model', 'n_chns'),
+                                                  fac=1, sn=self.cfg.getint('model', 'sn_crit'),
+                                                  device=device)
+                self.generator = model.AtomGen(z_dim=self.z_and_label_dim,
+                                                    in_channels=self.ff.n_channels,
+                                                    start_channels=self.cfg.getint('model', 'n_chns'),
+                                                    fac=1,
+                                                    sn=self.cfg.getint('model', 'sn_gen'),
+                                                    device=device)
+            else:
+                self.critic = model.AtomCrit16(in_channels=self.ff.n_channels+1,
+                                                  start_channels=self.cfg.getint('model', 'n_chns'),
+                                                  fac=1, sn=self.cfg.getint('model', 'sn_crit'),
+                                                  device=device)
+                self.generator = model.AtomGen16(z_dim=self.z_and_label_dim,
+                                                    in_channels=self.ff.n_channels,
+                                                    start_channels=self.cfg.getint('model', 'n_chns'),
+                                                    fac=1,
+                                                    sn=self.cfg.getint('model', 'sn_gen'),
+                                                    device=device)
 
-            end = timer()
+        self.use_gp = cfg.getboolean('model', 'gp')
 
-            print(int(self.checkpoint_gen.step), "D: ", c_loss.numpy(), c_loss_wass.numpy(), c_loss_grad.numpy(), c_loss_eps.numpy(), "G: ",
-                  g_loss_tot.numpy(), g_loss_w.numpy(), b_loss.numpy(), a_loss.numpy(), d_loss.numpy(), l_loss.numpy(), "time:", end - start)
+        #self.mse = torch.nn.MSELoss()
+        #self.kld = torch.nn.KLDivLoss(reduction="batchmean")
 
-            self.loss_dict["critic_tot"].append(c_loss.numpy())
-            self.loss_dict["critic_wass"].append(c_loss_wass.numpy())
-            self.loss_dict["critic_gp"].append(c_loss_grad.numpy())
-            self.loss_dict["critic_eps"].append(c_loss_eps.numpy())
-            self.loss_dict["gen_tot"].append(g_loss_tot.numpy())
-            self.loss_dict["gen_wass"].append(g_loss_w.numpy())
-            self.loss_dict["gen_bond"].append(b_loss.numpy())
-            self.loss_dict["gen_angle"].append(a_loss.numpy())
-            self.loss_dict["gen_dih"].append(d_loss.numpy())
-            self.loss_dict["gen_lj"].append(l_loss.numpy())
+        self.critic.to(device=device)
+        self.generator.to(device=device)
+        #self.mse.to(device=device)
 
-            self.checkpoint_gen.step.assign_add(1)
-
-            if step % n_tensorboard == 0:
-                with self.summary_writer.as_default():
-                    for label, metric in self.c_metrics:
-                        tf.summary.scalar(label, metric.result(), step=int(self.checkpoint_gen.step))
-                        metric.reset_states()
-                    for label, metric in self.g_metrics:
-                        tf.summary.scalar(label, metric.result(), step=int(self.checkpoint_gen.step))
-                        metric.reset_states()
-
-            # record samples
-            if step % n_val == 0:
-                self.validate(n_gibbs, bm_mode=bm_mode)
-
-            # save model
-            if step % n_save == 0:
-                print("saving model")
-                self.checkpoint_manager_critic.save()
-                self.checkpoint_manager_gen.save()
-
-
-
-        with open('./' + self.name + '/config.ini', 'a') as f:
-            f.write("# ended at step: " + str(self.checkpoint_gen.step.numpy()))
-        self.loss_dict["end_step"] = int(self.checkpoint_gen.step)-1
-        print("saving loss dict")
-        np.save(self.logs_dir+"/loss_dict_"+str(self.checkpoint_gen.step.numpy()), self.loss_dict)
-        print("saving model")
-        self.checkpoint_manager_critic.save()
-        self.checkpoint_manager_gen.save()
-
-
-    # Losses
-    @tf.function
-    def gen_loss_wass(self, critic_fake):
-        return tf.reduce_mean(-1. * critic_fake)
-
-    @tf.function
-    def gen_supervised_loss(self, real_frames, fake_frames):
-        fine_frames_normed = tf.divide(real_frames, tf.reduce_sum(real_frames, axis=[1, 2, 3], keepdims=True))
-        fake_frames_normed = tf.divide(fake_frames, tf.reduce_sum(fake_frames, axis=[1, 2, 3], keepdims=True))
-        g_loss_super = tf.reduce_mean(tf.keras.losses.KLD(fine_frames_normed, fake_frames_normed))
-        return g_loss_super
-
-    @tf.function
-    def gen_loss_energy(self, real_coords, fake_coords, energy_ndx):
-        bond_ndx, angle_ndx, dih_ndx, lj_ndx = energy_ndx
-
-        #tf.print(real_coords)
-        #tf.print(fake_coords)
-        #print(real_coords)
-        #print(fake_coords)
-
-        e_bond_real = tf_energy.bond_energy(real_coords, bond_ndx, self.bond_params)
-        e_angle_real = tf_energy.angle_energy(real_coords, angle_ndx, self.angle_params)
-        e_dih_real = tf_energy.dih_energy(real_coords, dih_ndx, self.dih_params)
-        e_lj_real = tf_energy.lj_energy(real_coords, lj_ndx, self.lj_params)
-
-        e_bond_fake = tf_energy.bond_energy(fake_coords, bond_ndx, self.bond_params)
-        e_angle_fake = tf_energy.angle_energy(fake_coords, angle_ndx, self.angle_params)
-        e_dih_fake = tf_energy.dih_energy(fake_coords, dih_ndx, self.dih_params)
-        e_lj_fake = tf_energy.lj_energy(fake_coords, lj_ndx, self.lj_params)
-
-        bond_loss = tf.abs(e_bond_real - e_bond_fake)
-        angle_loss = tf.abs(e_angle_real - e_angle_fake)
-        dih_loss = tf.abs(e_dih_real - e_dih_fake)
-        lj_loss = tf.abs(e_lj_real - e_lj_fake)
-
-        #return e_bond_real, e_angle_real, e_dih_real, e_lj_real
-        return bond_loss, angle_loss, dih_loss, lj_loss
+        self.opt_generator_pretrain = Adam(self.generator.parameters(), lr=0.00005, betas=(0, 0.9))
+        self.opt_generator = Adam(self.generator.parameters(), lr=0.00005, betas=(0, 0.9))
+        self.opt_critic = Adam(self.critic.parameters(), lr=0.0001, betas=(0, 0.9))
 
 
-    @tf.function
-    def crit_loss_wass(self, critic_real, critic_fake):
-        loss_on_generated = tf.reduce_mean(critic_fake)
-        loss_on_real = tf.reduce_mean(critic_real)
+        self.restored_model = False
+        self.restore_latest_checkpoint()
+
+    def prior_weight(self):
+        try:
+            ndx = next(x[0] for x in enumerate(self.prior_schedule) if x[1] > self.epoch) - 1
+        except:
+            ndx = len(self.prior_schedule) - 1
+        if ndx > 0 and self.prior_schedule[ndx] == self.epoch:
+            weight = self.prior_weights[ndx-1] + self.prior_weights[ndx] * (self.step - self.epoch*self.steps_per_epoch) / self.steps_per_epoch
+        else:
+            weight = self.prior_weights[ndx]
+
+        return weight
+
+    def get_prior_weights(self):
+        steps_per_epoch = len(self.loader_train)
+        tot_steps = steps_per_epoch * self.cfg.getint('training', 'n_epoch')
+
+        prior_weights = self.cfg.get('training', 'energy_prior_weights')
+        prior_weights = [float(v) for v in prior_weights.split(",")]
+        prior_steps = self.cfg.get('training', 'n_start_prior')
+        prior_steps = [int(v) for v in prior_steps.split(",")]
+        n_trans = self.cfg.getint('training', 'n_prior_transition')
+        weights = []
+        for s in range(self.step, self.step + tot_steps):
+            if s > prior_steps[-1]:
+                ndx = len(prior_weights)-1
+                #weights.append(self.energy_prior_values[-1])
+            else:
+                for n in range(0, len(prior_steps)):
+                    if s < prior_steps[n]:
+                        #weights.append(self.energy_prior_values[n])
+                        ndx = n
+                        break
+            #print(ndx)
+            if ndx > 0 and s < prior_steps[ndx-1] + self.cfg.getint('training', 'n_prior_transition'):
+                weights.append(prior_weights[ndx-1] + (prior_weights[ndx]-prior_weights[ndx-1])*(s-prior_steps[ndx-1])/n_trans)
+            else:
+                weights.append(prior_weights[ndx])
+
+        return weights
+
+
+    def make_checkpoint(self):
+        return self.out.make_checkpoint(
+            self.step,
+            {
+                "generator": self.generator.state_dict(),
+                "critic": self.critic.state_dict(),
+                "opt_generator": self.opt_generator.state_dict(),
+                "opt_critic": self.opt_critic.state_dict(),
+                "step": self.step,
+                "epoch": self.epoch,
+            },
+        )
+
+    def restore_latest_checkpoint(self):
+        latest_ckpt = self.out.latest_checkpoint()
+        if latest_ckpt is not None:
+            checkpoint = torch.load(latest_ckpt)
+            self.generator.load_state_dict(checkpoint["generator"])
+            self.critic.load_state_dict(checkpoint["critic"])
+            self.opt_generator.load_state_dict(checkpoint["opt_generator"])
+            self.opt_critic.load_state_dict(checkpoint["opt_critic"])
+            self.step = checkpoint["step"]
+            self.epoch = checkpoint["epoch"]
+            self.restored_model = True
+            print("restored model!!!")
+
+        self.out.prune_checkpoints()
+
+    def map_to_device(self, tup):
+        return tuple(tuple(y.to(device=self.device) for y in x) if type(x) is list else x.to(device=self.device) for x in tup)
+
+    def transpose_and_zip(self, args):
+        args = tuple(torch.transpose(x, 0, 1) for x in args)
+        elems = zip(*args)
+        return elems
+
+    def featurize(self, grid, features):
+        grid = grid[:, :, None, :, :, :] * features[:, :, :, None, None, None]
+        #grid (BS, N_atoms, 1, N_x, N_y, N_z) * features (BS, N_atoms, N_features, 1, 1, 1)
+        return torch.sum(grid, 1)
+
+    def prepare_condition(self, fake_atom_grid, real_atom_grid, aa_featvec, bead_features):
+        fake_aa_features = self.featurize(fake_atom_grid, aa_featvec)
+        real_aa_features = self.featurize(real_atom_grid, aa_featvec)
+        c_fake = fake_aa_features + bead_features
+        c_real = real_aa_features + bead_features
+        return c_fake, c_real
+
+    def generator_loss(self, critic_fake):
+        return (-1.0 * critic_fake).mean()
+
+    def critic_loss(self, critic_real, critic_fake):
+        loss_on_generated = critic_fake.mean()
+        loss_on_real = critic_real.mean()
 
         loss = loss_on_generated - loss_on_real
         return loss
 
-    @tf.function
     def epsilon_penalty(self, epsilon, critic_real_outputs):
         if epsilon > 0:
-            penalties = tf.square(critic_real_outputs)
-            penalty = epsilon * tf.reduce_mean(penalties)
+            penalties = torch.pow(critic_real_outputs, 2)
+            penalty = epsilon * penalties.mean()
             return penalty
-        return 0
+        return 0.0
 
-    @tf.function
-    def gradient_penalty(self, input_real, input_fake, target=1.0, use_wgan_lp_loss=False):
-        if input_real.shape.ndims is None:
-            raise ValueError('`input_real` can\'t have unknown rank.')
-        if input_fake.shape.ndims is None:
-            raise ValueError('`input_fake` can\'t have unknown rank.')
+    def gradient_penalty(self, real_data, fake_data):
+        batch_size = real_data.size()[0]
 
-        differences = input_real - input_fake
-        batch_size = differences.shape[0] or tf.shape(differences)[0]
-        alpha_shape = [batch_size] + [1] * (differences.shape.ndims - 1)
-        alpha = tf.random.uniform(shape=alpha_shape, dtype=input_real.dtype)
+        # Calculate interpolation
+        alpha = torch.rand(batch_size, 1, 1, 1, 1, device=self.device)
+        alpha = alpha.expand_as(real_data)
 
-        interpolates = input_real - (alpha * differences)
-        critic_interpolates = self.critic(interpolates)
+        interpolated = alpha * real_data + (1 - alpha) * fake_data
+        interpolated = Variable(interpolated, requires_grad=True)
+        interpolated.to(self.device)
 
-        gradients = tf.gradients(critic_interpolates, interpolates)[0]
+        # Calculate probability of interpolated examples
+        prob_interpolated = self.critic(interpolated)
 
-        gradient_squares = tf.math.reduce_sum(tf.math.square(gradients), axis=list(range(1, gradients.shape.ndims)))
-        # avoid annihilation in sum
-        gradient_squares = tf.math.maximum(gradient_squares, 1e-5)
-        # Propagate shape information, if possible.
-        if isinstance(batch_size, int):
-            gradient_squares.set_shape([batch_size] + gradient_squares.shape.as_list()[1:])
+        # Calculate gradients of probabilities with respect to examples
+        gradients = torch_grad(outputs=prob_interpolated, inputs=interpolated,
+                               grad_outputs=torch.ones(prob_interpolated.size(), device=self.device),
+                               create_graph=True, retain_graph=True)[0]
 
-        # if check_numerics:
-        #    gradient_squares = tf.debugging.check_numerics(gradient_squares, 'gradient_squares')
+        gradients = gradients.view(batch_size, -1)
 
-        gradient_norm = tf.math.sqrt(gradient_squares)
-        # if check_numerics:
-        #    gradient_norm = tf.debugging.check_numerics(gradient_norm, 'gradient_norm')
+        gradients_norm = torch.sqrt(torch.sum(gradients ** 2, dim=1) + 1e-12)
+        gradients_norm = ((gradients_norm - 1) ** 2)
+        #gradients_norm = gradients_norm * mask
 
-        if use_wgan_lp_loss:
-            penalties = tf.square(tf.maximum(gradient_norm - target, 0)) / (target ** 2)
+        # Return gradient penalty
+        return gradients_norm.mean()
+
+    def get_energies_from_grid(self, atom_grid, energy_ndx):
+        coords = avg_blob(
+            atom_grid,
+            res=self.cfg.getint('grid', 'resolution'),
+            width=self.cfg.getfloat('grid', 'length'),
+            sigma=self.cfg.getfloat('grid', 'sigma'),
+            device=self.device,
+        )
+        bond_ndx, angle_ndx, dih_ndx, lj_ndx = energy_ndx
+        b_energy = self.energy.bond(coords, bond_ndx)
+        a_energy = self.energy.angle(coords, angle_ndx)
+        d_energy = self.energy.dih(coords, dih_ndx)
+        l_energy = self.energy.lj(coords, lj_ndx)
+        return b_energy, a_energy, d_energy, l_energy
+
+    def get_energies_from_coords(self, coords, energy_ndx):
+
+        bond_ndx, angle_ndx, dih_ndx, lj_ndx = energy_ndx
+        b_energy = self.energy.bond(coords, bond_ndx)
+        a_energy = self.energy.angle(coords, angle_ndx)
+        d_energy = self.energy.dih(coords, dih_ndx)
+        l_energy = self.energy.lj(coords, lj_ndx)
+
+        return b_energy, a_energy, d_energy, l_energy
+
+    def get_forces(self, x, energy_ndx):
+        x = x.requires_grad_(True)
+        b_energy, angle_energy, dih_energy, lj_energy = self.get_energies_from_coords(x, energy_ndx)
+        energy = b_energy + angle_energy + dih_energy + lj_energy
+        #for f in torch.autograd.grad(energy, x, torch.ones_like(energy), create_graph=True, retain_graph=True):
+        #    print(f.size())
+        return -torch.autograd.grad(energy, x, torch.ones_like(energy), create_graph=True, retain_graph=True)[0]
+
+    def energy_min_loss(self, atom_grid, energy_ndx):
+
+        fb, fa, fd, fl = self.get_energies_from_grid(atom_grid, energy_ndx)
+
+        b_loss = torch.mean(fb)
+        a_loss = torch.mean(fa)
+        d_loss = torch.mean(fd)
+        l_loss = torch.mean(fl)
+
+        return b_loss, a_loss, d_loss, l_loss
+
+    def energy_match_loss(self, real_atom_grid, fake_atom_grid, energy_ndx):
+
+        rb, ra, rd, rl = self.get_energies_from_grid(real_atom_grid, energy_ndx)
+        fb, fa, fd, fl = self.get_energies_from_grid(fake_atom_grid, energy_ndx)
+
+        b_loss = torch.mean(torch.abs(rb - fb))
+        a_loss = torch.mean(torch.abs(ra - fa))
+        d_loss = torch.mean(torch.abs(rd - fd))
+        l_loss = torch.mean(torch.abs(rl - fl))
+
+        return b_loss, a_loss, d_loss, l_loss, torch.mean(fb), torch.mean(fa), torch.mean(fd), torch.mean(fl)
+
+
+    def detach(self, t):
+        t = tuple([c.detach().cpu().numpy() for c in t])
+        return t
+
+    def train(self):
+        steps_per_epoch = len(self.loader_train)
+        n_critic = self.cfg.getint('training', 'n_critic')
+        n_save = int(self.cfg.getint('training', 'n_save'))
+        
+        epochs = tqdm(range(self.epoch, self.cfg.getint('training', 'n_epoch')))
+        epochs.set_description('epoch: ')
+        for epoch in epochs:
+            n = 0
+            loss_epoch = [[], [], [], [], [], [], []]
+            data = tqdm(zip(self.loader_train, cycle(self.loader_val)), total=steps_per_epoch, leave=False)
+            for train_batch, val_batch in data:
+
+                train_batch = self.map_to_device(train_batch)
+                elems, energy_ndx = train_batch
+
+                if n == n_critic:
+                    g_loss_dict = self.train_step_gen(elems, energy_ndx)
+                    for key, value in g_loss_dict.items():
+                        self.out.add_scalar(key, value, global_step=self.step)
+                    data.set_description('D: {}, G: {}, {}, {}, {}, {}, {}, {}'.format(c_loss,
+                                                                                   g_loss_dict['Generator/wasserstein'],
+                                                                                   g_loss_dict['Generator/energy'],
+                                                                                   g_loss_dict['Generator/energy_bond'],
+                                                                                   g_loss_dict['Generator/energy_angle'],
+                                                                                   g_loss_dict['Generator/energy_dih'],
+                                                                                   g_loss_dict['Generator/energy_lj'],
+                                                                                   g_loss_dict['Generator/prior_weight']))
+
+                    for value, l in zip([c_loss] + list(g_loss_dict.values()), loss_epoch):
+                        l.append(value)
+
+                    val_batch = self.map_to_device(val_batch)
+                    elems, energy_ndx = val_batch
+                    g_loss_dict = self.train_step_gen(elems, energy_ndx, backprop=False)
+                    for key, value in g_loss_dict.items():
+                        self.out.add_scalar(key, value, global_step=self.step, mode='val')
+                    self.step += 1
+                    n = 0
+
+                else:
+                    c_loss = self.train_step_critic(elems)
+                    n += 1
+
+
+            tqdm.write('epoch {} steps {} : D: {} G: {}, {}, {}, {}, {}, {}'.format(
+                self.epoch,
+                self.step,
+                sum(loss_epoch[0]) / len(loss_epoch[0]),
+                sum(loss_epoch[1]) / len(loss_epoch[1]),
+                sum(loss_epoch[2]) / len(loss_epoch[2]),
+                sum(loss_epoch[3]) / len(loss_epoch[3]),
+                sum(loss_epoch[4]) / len(loss_epoch[4]),
+                sum(loss_epoch[5]) / len(loss_epoch[5]),
+                sum(loss_epoch[6]) / len(loss_epoch[6]),
+            ))
+
+            self.epoch += 1
+
+            if self.epoch % n_save == 0:
+                self.make_checkpoint()
+                self.out.prune_checkpoints()
+                self.validate()
+
+
+
+
+
+    def train_step_critic(self, elems):
+        c_loss = torch.zeros([], dtype=torch.float32, device=self.device)
+
+        features, target_atom, target_type, _, _ = elems
+        #prepare input for generator
+        z = torch.empty(
+            [target_atom.shape[0], self.z_dim],
+            dtype=torch.float32,
+            device=self.device,
+        ).normal_()
+
+        #generate fake atom
+        fake_atom = self.generator(z, target_type, features)
+
+        fake_data = torch.cat([fake_atom, features], dim=1)
+        real_data = torch.cat([target_atom[:, None, :, :, :], features], dim=1)
+
+        #critic
+        critic_fake = self.critic(fake_data)
+        critic_real = self.critic(real_data)
+
+        #loss
+        c_wass = self.critic_loss(critic_real, critic_fake)
+        c_eps = self.epsilon_penalty(1e-3, critic_real)
+        c_loss += c_wass + c_eps
+        if self.use_gp:
+            c_gp = self.gradient_penalty(real_data, fake_data)
+            c_loss += c_gp
+
+        self.opt_critic.zero_grad()
+        c_loss.backward()
+        self.opt_critic.step()
+
+        return c_loss.detach().cpu().numpy()
+
+
+    def train_step_gen(self, elems, energy_ndx, backprop=True):
+
+        features, target_atom, target_type, atom_grid, repl = elems
+
+        g_wass = torch.zeros([], dtype=torch.float32, device=self.device)
+
+        z = torch.empty(
+            [target_atom.shape[0], self.z_dim],
+            dtype=torch.float32,
+            device=self.device,
+        ).normal_()
+
+        #generate fake atom
+        fake_atom = self.generator(z, target_type, features)
+
+        #critic
+        critic_fake = self.critic(torch.cat([fake_atom, features], dim=1))
+
+        #mask
+        critic_fake = torch.squeeze(critic_fake)
+
+        #loss
+        g_wass += self.generator_loss(critic_fake)
+        #g_loss += g_wass
+
+        real_atom_grid = torch.where(repl[:, :, None, None, None], atom_grid, target_atom[:, None, :, :, :])
+        fake_atom_grid = torch.where(repl[:, :, None, None, None], atom_grid, fake_atom)
+
+        if self.prior_mode == 'match':
+            b_loss, a_loss, d_loss, l_loss, b_energy, a_energy, d_energy, l_energy = self.energy_match_loss(real_atom_grid, fake_atom_grid, energy_ndx)
+            energy_loss = (self.ratio_bonded_nonbonded*(b_loss + a_loss + d_loss) + l_loss) * self.prior_weight()
+            g_loss = g_wass + energy_loss
+        elif self.prior_mode == 'min':
+            b_energy, a_energy, d_energy, l_energy = self.energy_min_loss(fake_atom_grid, energy_ndx)
+            energy_loss = (self.ratio_bonded_nonbonded*(b_energy + a_energy + d_energy) + l_energy) * self.prior_weight()
+            g_loss = g_wass + energy_loss
         else:
-            penalties = tf.square(gradient_norm - target) / (target ** 2)
+            b_energy, a_energy, d_energy, l_energy = self.energy_min_loss(fake_atom_grid, energy_ndx)
+            energy_loss = (self.ratio_bonded_nonbonded*(b_energy + a_energy + d_energy) + l_energy) * self.prior_weight()
+            g_loss = g_wass
 
-        penalty = tf.reduce_mean(penalties)
+        #g_loss = g_wass + self.prior_weight() * energy_loss
+        #g_loss = g_wass
 
-        return penalty
-
-    @tf.function
-    def train_step_generator_supervised(self, real_atom, c, l):
-        z = tf.random.normal([tf.shape(c)[0], self.z_dim])
-
-        with tf.GradientTape() as gen_tape:
-            fake_atom = self.generator([z, c, l])
-            fake_atom = tf.reduce_sum(fake_atom, axis=-1, keepdims=True)
-            real_atom = tf.reduce_sum(real_atom, axis=-1, keepdims=True)
-
-            g_loss_super = self.gen_supervised_loss(real_atom, fake_atom)
-
-        gradients_generator = gen_tape.gradient(g_loss_super, self.generator.trainable_variables)
-        #gradients_generator = [tf.clip_by_value(grad, -1E8, 1E8) for grad in gradients_generator]
-        self.gen_opt.apply_gradients(zip(gradients_generator, self.generator.trainable_variables))
-        return g_loss_super
-
-    @tf.function
-    def train_step_generator(self, c, l, repl, real_coords, energy_ndx, prior_weight):
-        z = tf.random.normal([tf.shape(c)[0], self.z_dim])
-
-        with tf.GradientTape() as gen_tape:
-            fake_atom = self.generator([z, c, l], training=True)
-            fake_coord = tf_utils.average_blob_pos(tf.reduce_sum(fake_atom, axis=-1, keepdims=True), self.resolution, self.delta_s)
-            fake_coords = tf.where(repl, real_coords, fake_coord)
+        if backprop:
+            self.opt_generator.zero_grad()
+            g_loss.backward()
+            self.opt_generator.step()
 
 
-            critic_input = tf.concat([fake_atom, c], axis=-1)
-            critic_fake = self.critic(critic_input)
+        g_loss_dict = {"Generator/wasserstein": g_wass.detach().cpu().numpy(),
+                       "Generator/energy": energy_loss.detach().cpu().numpy(),
+                       "Generator/energy_bond": b_energy.detach().cpu().numpy(),
+                       "Generator/energy_angle": a_energy.detach().cpu().numpy(),
+                       "Generator/energy_dih": d_energy.detach().cpu().numpy(),
+                       "Generator/energy_lj": l_energy.detach().cpu().numpy(),
+                       "Generator/prior_weight": self.prior_weight()}
 
-            g_loss_wass = self.gen_loss_wass(critic_fake)
-
-            bond_loss, angle_loss, dih_loss, lj_loss = self.gen_loss_energy(real_coords, fake_coords, energy_ndx)
-
-            g_loss_wass = tf.reduce_sum(g_loss_wass)
-            bond_loss = tf.reduce_sum(bond_loss)
-            angle_loss = tf.reduce_sum(angle_loss)
-            dih_loss = tf.reduce_sum(dih_loss)
-            lj_loss = tf.reduce_sum(lj_loss)
-
-            gen_loss = g_loss_wass + prior_weight*(bond_loss + angle_loss + dih_loss + lj_loss)
-
-        gradients_generator = gen_tape.gradient(gen_loss, self.generator.trainable_variables)
-        #gradients_generator = [tf.clip_by_value(grad, -1E8, 1E8) for grad in gradients_generator]
-        self.gen_opt.apply_gradients(zip(gradients_generator, self.generator.trainable_variables))
-        return fake_atom, gen_loss, g_loss_wass, bond_loss, angle_loss, dih_loss, lj_loss
-
-    @tf.function
-    def train_step_critic(self, real_atom, c, l):
-        z = tf.random.normal([tf.shape(c)[0], self.z_dim])
-
-        with tf.GradientTape() as critic_tape:
-            fake_atom = self.generator([z, c, l])
-
-            critic_input_fake = tf.concat([fake_atom, c], axis=-1)
-            critic_fake = self.critic(critic_input_fake, training=True)
-
-            critic_input_real = tf.concat([real_atom, c], axis=-1)
-            critic_real = self.critic(critic_input_real, training=True)
-
-            c_loss_wass = self.crit_loss_wass(critic_real, critic_fake)
-            c_loss_grad = self.gradient_penalty(critic_input_real, critic_input_fake)
-            c_loss_eps = self.epsilon_penalty(1e-3, critic_real)
-
-            c_loss = c_loss_wass + 10. * c_loss_grad + c_loss_eps
-
-        gradients_critic = critic_tape.gradient(c_loss, self.critic.trainable_variables)
-        self.crit_opt.apply_gradients(zip(gradients_critic, self.critic.trainable_variables))
-
-        return c_loss, c_loss_wass, c_loss_grad, c_loss_eps
-
-    @tf.function
-    def predict(self, target_type, atom_pos, atom_featvec, bead_pos, bead_featvec):
-
-        env_grid = tf_utils.prepare_grid(atom_pos, atom_featvec, bead_pos, bead_featvec, self.sigma, self.resolution,
-                                         self.delta_s)
-        z = tf.random.normal([tf.shape(env_grid)[0], self.z_dim])
-
-        fake_atom = self.generator([z, env_grid, target_type], training=False)
-        target_type = tf.cast(target_type, tf.float32)
-        fake_atom_notype = fake_atom * target_type[:, tf.newaxis, tf.newaxis, :, :]
-        fake_atom_notype = tf.reduce_sum(fake_atom_notype, axis=4, keepdims=True)
-        new_pos = tf_utils.average_blob_pos(fake_atom_notype, self.resolution, self.delta_s)
-
-        return new_pos
-
-    #@tf.function
-    def validate(self, n_gibbs, bm_mode="normal"):
-        start = timer()
-        print("Saving samples in {}".format(self.samples_dir), "...", end='')
-
-        #u_bm = deepcopy(self.u_val)
-        bm_iter = self.u_val.make_batch(mode="init")
-        for batch in bm_iter:
-            atoms, target_type, atom_pos, atom_featvec, bead_pos, bead_featvec = batch
-            if self.rand_rot:
-                rot_mat = self.u_val.samples[0].rand_rot_mat()
-                atom_pos = [np.dot(pos, rot_mat) for pos in atom_pos]
-                bead_pos = [np.dot(pos, rot_mat) for pos in bead_pos]
-            new_pos = self.predict(target_type, atom_pos, atom_featvec, bead_pos, bead_featvec)
-            new_pos = new_pos.numpy()[:,0,:]
-            if self.rand_rot:
-                new_pos = np.dot(new_pos, rot_mat.T)
-            self.u_val.update_pos(atoms, new_pos, bm_mode="normal", temp=568)
-
-        for u in self.u_val.samples:
-            u.write_gro_file(self.samples_dir + "/"+u.name+"_init_" + str(self.checkpoint_gen.step.numpy()) + ".gro")
-
-        for n in range(0, n_gibbs):
-            bm_iter = self.u_val.make_batch(mode="gibbs")
-            for batch in bm_iter:
-                atoms, target_type, atom_pos, atom_featvec, bead_pos, bead_featvec = batch
-                if self.rand_rot:
-                    rot_mat = self.u_val.samples[0].rand_rot_mat()
-                    atom_pos = [np.dot(pos, rot_mat) for pos in atom_pos]
-                    bead_pos = [np.dot(pos, rot_mat) for pos in bead_pos]
-                new_pos = self.predict(target_type, atom_pos, atom_featvec, bead_pos, bead_featvec)
-                new_pos = new_pos.numpy()[:,0,:]
-                if self.rand_rot:
-                    new_pos = np.dot(new_pos, rot_mat.T)
-                self.u_val.update_pos(atoms, new_pos, bm_mode=bm_mode, temp=568)
-
-            for u in self.u_val.samples:
-                u.write_gro_file(self.samples_dir + "/"+u.name+"_gibbs"+str(n)+"_" + str(self.checkpoint_gen.step.numpy()) + ".gro")
-
-        #reset atom positions
-        self.u_val.kick_atoms()
-
-        end = timer()
-        print("done!", "time:", end - start)
+        return g_loss_dict
 
 
-    def make_dir(self, path):
-        if not os.path.exists(path):
-            os.makedirs(path)
+    def to_tensor_and_zip(self, *args):
+        args = tuple(torch.from_numpy(x).float().to(self.device) if x.dtype == np.dtype(np.float64) else torch.from_numpy(x).to(self.device) for x in args)
+        #args = tuple(torch.transpose(x, 0, 1) for x in args)
+        elems = zip(*args)
+        return elems
 
-"""
-u = Universe("./sPS_t568_small", align=True, aug=True)
-#u = Universes(["./sPS_t568_small"], align=True, aug=True)
-gan = GAN("test_model", "Deep_g8", u, u)
-gan.train(n_steps, n_critic)
-"""
+    def to_tensor(self, t):
+        return tuple(torch.from_numpy(x).to(self.device) for x in t)
+
+    def transpose(self, t):
+        return tuple(torch.transpose(x, 0, 1) for x in t)
+
+    def insert_dim(self, t):
+        return tuple(x[None, :] for x in t)
+
+    def repeat(self, t):
+        return tuple(torch.stack(self.bs*[x]) for x in t)
+
+    def to_voxel(self, coords, grid, sigma):
+        coords = coords[..., None, None, None]
+        return torch.exp(-1.0 * torch.sum((grid - coords) * (grid - coords), axis=2) / sigma).float()
+
+    def predict(self, elems, initial, energy_ndx):
+
+        aa_grid, cg_features = initial
+
+        generated_atoms = []
+        for target_type, aa_featvec, repl in zip(*elems):
+            fake_aa_features = self.featurize(aa_grid, aa_featvec)
+            c_fake = fake_aa_features + cg_features
+            target_type = target_type.repeat(self.bs, 1)
+            z = torch.empty(
+                [target_type.shape[0], self.z_dim],
+                dtype=torch.float32,
+                device=self.device,
+            ).normal_()
+
+            #generate fake atom
+            fake_atom = self.generator(z, target_type, c_fake)
+            generated_atoms.append(fake_atom)
+
+            #update aa grids
+            aa_grid = torch.where(repl[:,:,None,None,None], aa_grid, fake_atom)
+
+        #generated_atoms = torch.stack(generated_atoms, dim=1)
+        generated_atoms = torch.cat(generated_atoms, dim=1)
+
+        generated_atoms_coords = avg_blob(
+            generated_atoms,
+            res=self.cfg.getint('grid', 'resolution'),
+            width=self.cfg.getfloat('grid', 'length'),
+            sigma=self.cfg.getfloat('grid', 'sigma'),
+            device=self.device,
+        )
+
+        b_energy, a_energy, d_energy, l_energy = self.get_energies_from_grid(aa_grid, energy_ndx)
+        energy = b_energy + a_energy + d_energy + l_energy
+
+        return generated_atoms_coords, energy
+
+    def validate(self, samples_dir=None):
+
+        if samples_dir:
+            samples_dir = self.out.output_dir / samples_dir
+            make_dir(samples_dir)
+        else:
+            samples_dir = self.out.samples_dir
+        stats = Stats(self.data, dir= samples_dir / "stats")
+
+        print("Saving samples in {}".format(samples_dir), "...", end='')
+
+        resolution = self.cfg.getint('grid', 'resolution')
+        delta_s = self.cfg.getfloat('grid', 'length') / self.cfg.getint('grid', 'resolution')
+        sigma = self.cfg.getfloat('grid', 'sigma')
+        #grid = make_grid_np(delta_s, resolution)
+
+        grid = torch.from_numpy(make_grid_np(delta_s, resolution)).to(self.device)
+        rot_mtxs = torch.from_numpy(rot_mtx_batch(self.bs)).to(self.device).float()
+        rot_mtxs_transposed = torch.from_numpy(rot_mtx_batch(self.bs, transpose=True)).to(self.device).float()
+
+        data_generators = []
+        data_generators.append(iter(Recurrent_Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
+        data_generators.append(iter(Recurrent_Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
+
+        for m in range(self.n_gibbs):
+            data_generators.append(iter(Recurrent_Generator(self.data, hydrogens=False, gibbs=True, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
+            data_generators.append(iter(Recurrent_Generator(self.data, hydrogens=True, gibbs=True, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
+
+        try:
+            self.generator.eval()
+            self.critic.eval()
+
+            for data_gen in data_generators:
+                start = timer()
+
+                for d in data_gen:
+                    with torch.no_grad():
+
+                        aa_coords = torch.matmul(torch.from_numpy(d['aa_pos']).to(self.device).float(), rot_mtxs)
+                        cg_coords = torch.matmul(torch.from_numpy(d['cg_pos']).to(self.device).float(), rot_mtxs)
+
+                        #aa_coords = torch.from_numpy(d['aa_pos']).to(self.device).float()
+                        #cg_coords = torch.from_numpy(d['cg_pos']).to(self.device).float()
+
+                        aa_grid = self.to_voxel(aa_coords, grid, sigma)
+                        cg_grid = self.to_voxel(cg_coords, grid, sigma)
+
+                        cg_features = torch.from_numpy(d['cg_feat'][None, :, :, None, None, None]).to(self.device) * cg_grid[:, :, None, :, :, :]
+                        cg_features = torch.sum(cg_features, 1)
+
+                        initial = (aa_grid, cg_features)
+
+                        elems = (d['target_type'], d['aa_feat'], d['repl'])
+                        elems = self.transpose(self.insert_dim(self.to_tensor(elems)))
+
+                        energy_ndx = (d['bonds_ndx'], d['angles_ndx'], d['dihs_ndx'], d['ljs_ndx'])
+                        energy_ndx = self.repeat(self.to_tensor(energy_ndx))
+
+                        new_coords, energies = self.predict(elems, initial, energy_ndx)
+
+                        ndx = energies.argmin()
+
+                        new_coords = torch.matmul(new_coords[ndx], rot_mtxs_transposed[ndx])
+                        #new_coords = new_coords[ndx]
+                        new_coords = new_coords.detach().cpu().numpy()
+
+                        for c, a in zip(new_coords, d['atom_seq']):
+
+                            a.pos = d['loc_env'].rot_back(c)
+                            #a.ref_pos = d['loc_env'].rot_back(c)
+
+                print(timer()-start)
+            stats.evaluate(train=False, subdir=str(self.epoch), save_samples=True)
+            #reset atom positions
+            for sample in self.data.samples_val:
+                #sample.write_gro_file(samples_dir / (sample.name + str(self.step) + ".gro"))
+                sample.kick_atoms()
+
+        finally:
+            self.generator.train()
+            self.critic.train()
+
+
+

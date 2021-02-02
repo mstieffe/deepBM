@@ -2,7 +2,7 @@ import numpy as np
 import networkx as nx
 from pathlib import Path
 from scipy.stats import entropy
-from dbm.universe1 import *
+from dbm.universe import *
 from dbm.fig import *
 #from dbm.recurrent_generator import Generator
 from itertools import islice

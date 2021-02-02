@@ -54,10 +54,10 @@ class Universe():
         for res in cg.topology.residues:
             self.mols.append(Mol(res.name))
 
-            aa_top_file = path_dict['dir'] / (res.name + "_aa.itp")
-            cg_top_file = path_dict['dir'] / (res.name + "_cg.itp")
-            map_file = path_dict['dir'] / (res.name + ".map")
-            env_file = path_dict['dir'] / (res.name + ".env")
+            aa_top_file = path_dict['data_dir'] / "aa_top" / (res.name + ".itp")
+            cg_top_file = path_dict['data_dir'] / "cg_top" / (res.name + ".itp")
+            map_file = path_dict['data_dir'] / "mapping" / (res.name + ".map")
+            #env_file = path_dict['dir'] / (res.name + ".env")
 
             beads = []
             for bead in res.atoms:
@@ -67,7 +67,7 @@ class Universe():
                 self.mols[-1].add_bead(beads[-1])
 
             atoms = []
-            for line in read_between("[map]", "\n", map_file):
+            for line in read_between("[map]", "[/map]", map_file):
                 type_name = line.split()[1]
                 bead = beads[int(line.split()[2])-1]
                 atoms.append(Atom(bead,
@@ -90,14 +90,14 @@ class Universe():
             self.atoms += atoms
 
             if self.align:
-                for line in read_between("[align]", "[mult]", env_file):
+                for line in read_between("[align]", "[/align]", map_file):
                     b_index, fp_index = line.split()
                     if int(b_index) > len(self.mols[-1].beads) or int(fp_index) > len(self.mols[-1].beads):
                         raise Exception('Indices in algn section do not match the molecular structure!')
                     self.mols[-1].beads[int(b_index) - 1].fp = self.mols[-1].beads[int(fp_index) - 1]
 
             if self.aug:
-                for line in read_between("[mult]", "\n", env_file):
+                for line in read_between("[mult]", "[/mult]", map_file):
                     b_index, m = line.split()
                     if int(b_index) > len(self.mols[-1].beads) or int(m) < 0:
                         raise Exception('Invalid number of multiples!')

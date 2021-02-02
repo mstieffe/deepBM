@@ -6,7 +6,7 @@ import networkx as nx
 from timeit import default_timer as timer
 import matplotlib.pyplot as plt
 from dbm.ff import *
-from dbm.universe1 import *
+from dbm.universe import *
 from copy import deepcopy
 from operator import add
 from pathlib import Path
@@ -38,6 +38,7 @@ class Data():
                                                                               self.ff_name)
 
         #samples
+        self.data_dir = Path("./data/")
         self.dirs_train = [Path("./data/") / d.replace(" ", "") for d in cfg.get('data', 'train_data').split(",")]
         self.dirs_val = [Path("./data/") / d.replace(" ", "") for d in cfg.get('data', 'val_data').split(",")]
         self.dir_processed = Path("./data/processed")
@@ -66,14 +67,12 @@ class Data():
                 samples = pickle.load(input)
             print("Loaded train universe from " + str(processed_path))
         else:
-            print("hier")
             samples = []
             cg_dir = path / "cg"
             aa_dir = path / "aa"
             for cg_path in cg_dir.glob('*.gro'):
-                print("hier auch")
                 aa_path = aa_dir / cg_path.name
-                path_dict = {'dir': path, 'cg_path': cg_path, 'file_name': cg_path.stem}
+                path_dict = {'data_dir': self.data_dir, 'cg_path': cg_path, 'file_name': cg_path.stem}
                 if aa_path.exists():
                     path_dict['aa_path'] = aa_path
                 else:

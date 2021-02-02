@@ -6,7 +6,7 @@ from torch.autograd import grad as torch_grad
 from dbm.util import make_grid_np, rand_rot_mtx, rot_mtx_batch, voxelize_gauss, make_dir, avg_blob, voxelize_gauss_batch
 from dbm.torch_energy import *
 from dbm.output import *
-from dbm.recurrent_generator import Generator
+from dbm.recurrent_generator import Recurrent_Generator
 from tqdm import tqdm
 import numpy as np
 #from tqdm import tqdm
@@ -34,16 +34,16 @@ import gc
 torch.set_default_dtype(torch.float32)
 
 
-class DS(Dataset):
+class DS_seq(Dataset):
     def __init__(self, data, cfg, train=True):
 
         self.data = data
 
         generators = []
-        generators.append(Generator(data, hydrogens=False, gibbs=False, train=train, rand_rot=False))
-        generators.append(Generator(data, hydrogens=True, gibbs=False, train=train, rand_rot=False))
-        generators.append(Generator(data, hydrogens=False, gibbs=True, train=train, rand_rot=False))
-        generators.append(Generator(data, hydrogens=True, gibbs=True, train=train, rand_rot=False))
+        generators.append(Recurrent_Generator(data, hydrogens=False, gibbs=False, train=train, rand_rot=False))
+        generators.append(Recurrent_Generator(data, hydrogens=True, gibbs=False, train=train, rand_rot=False))
+        generators.append(Recurrent_Generator(data, hydrogens=False, gibbs=True, train=train, rand_rot=False))
+        generators.append(Recurrent_Generator(data, hydrogens=True, gibbs=True, train=train, rand_rot=False))
 
         self.elems = []
         for g in generators:
@@ -103,7 +103,7 @@ class DS(Dataset):
     def array(self, elems, dtype):
         return tuple(np.array(t, dtype=dtype) for t in elems)
 
-class GAN_SEQ():
+class GAN_seq():
 
     def __init__(self, device, cfg):
 
@@ -114,7 +114,7 @@ class GAN_SEQ():
 
         #Data pipeline
         self.data = Data(cfg, save=True)
-        ds_train = DS(self.data, cfg)
+        ds_train = DS_seq(self.data, cfg)
         if len(ds_train) != 0:
             self.loader_train = DataLoader(
                 ds_train,
@@ -130,7 +130,7 @@ class GAN_SEQ():
         print(len(self.loader_train), self.steps_per_epoch)
         self.ff = self.data.ff
 
-        ds_val = DS(self.data, cfg, train=False)
+        ds_val = DS_seq(self.data, cfg, train=False)
         if len(ds_val) != 0:
             self.loader_val = DataLoader(
                 ds_val,
@@ -178,28 +178,69 @@ class GAN_SEQ():
         #self.w_prior = torch.tensor(self.prior_weights[self.step], dtype=torch.float32, device=device)
 
         #Model selection
-        if cfg.get('model', 'model_type') == "small":
-            print("Using small model")
+        if cfg.get('model', 'model_type') == "tiny":
+            print("Using tiny model")
             if cfg.getint('grid', 'resolution') == 8:
-                self.critic = model.AtomCrit_small(in_channels=self.ff.n_channels+1, fac=1, sn=self.cfg.getint('model', 'sn_crit'), device=device)
-                self.generator = model.AtomGen_small(self.z_and_label_dim, condition_n_channels=self.ff.n_channels, fac=1, sn=self.cfg.getint('model', 'sn_gen'), device=device)
+                self.critic = model.AtomCrit_tiny(in_channels=self.ff.n_channels+1,
+                                                  start_channels=self.cfg.getint('model', 'n_chns'),
+                                                  fac=1, sn=self.cfg.getint('model', 'sn_crit'),
+                                                  device=device)
+                self.generator = model.AtomGen_tiny(z_dim=self.z_and_label_dim,
+                                                    in_channels=self.ff.n_channels,
+                                                    start_channels=self.cfg.getint('model', 'n_chns'),
+                                                    fac=1,
+                                                    sn=self.cfg.getint('model', 'sn_gen'),
+                                                    device=device)
             else:
-                self.critic = model.AtomCrit_small16(in_channels=self.ff.n_channels+1, fac=1, sn=self.cfg.getint('model', 'sn_crit'), device=device)
-                self.generator = model.AtomGen_small16(self.z_and_label_dim, condition_n_channels=self.ff.n_channels, fac=1, sn=self.cfg.getint('model', 'sn_gen'), device=device)
-        elif cfg.get('model', 'model_type') == "small_drop":
-            print("Using small model")
-            if cfg.getint('grid', 'resolution') == 8:
-                self.critic = model.AtomCrit_small(in_channels=self.ff.n_channels+1, fac=1, sn=self.cfg.getint('model', 'sn_crit'), device=device)
-                self.generator = model.AtomGen_small_drop(self.z_and_label_dim, condition_n_channels=self.ff.n_channels, fac=1, sn=self.cfg.getint('model', 'sn_gen'), device=device)
-            else:
-                self.critic = model.AtomCrit_small16(in_channels=self.ff.n_channels+1, fac=1, sn=self.cfg.getint('model', 'sn_crit'), device=device)
-                self.generator = model.AtomGen_small_drop16(self.z_and_label_dim, condition_n_channels=self.ff.n_channels, fac=1, sn=self.cfg.getint('model', 'sn_gen'), device=device)
-        else:
+                self.critic = model.AtomCrit_tiny16(in_channels=self.ff.n_channels+1,
+                                                  start_channels=self.cfg.getint('model', 'n_chns'),
+                                                  fac=1, sn=self.cfg.getint('model', 'sn_crit'),
+                                                  device=device)
+                self.generator = model.AtomGen_tiny16(z_dim=self.z_and_label_dim,
+                                                    in_channels=self.ff.n_channels,
+                                                    start_channels=self.cfg.getint('model', 'n_chns'),
+                                                    fac=1,
+                                                    sn=self.cfg.getint('model', 'sn_gen'),
+                                                    device=device)
+        elif cfg.get('model', 'model_type') == "big":
             print("Using big model")
-            self.critic = model.AtomCrit2(in_channels=self.ff.n_channels + 1, fac=1,
-                                          sn=self.cfg.getint('model', 'sn_crit'), device=device)
-            self.generator = model.AtomGen2(self.z_and_label_dim, condition_n_channels=self.ff.n_channels, fac=1,
-                                            sn=self.cfg.getint('model', 'sn_gen'), device=device)
+            if cfg.getint('grid', 'resolution') == 8:
+                self.critic = model.AtomCrit_tiny(in_channels=self.ff.n_channels+1,
+                                                  start_channels=self.cfg.getint('model', 'n_chns'),
+                                                  fac=1, sn=self.cfg.getint('model', 'sn_crit'),
+                                                  device=device)
+                self.generator = model.AtomGen_tiny(z_dim=self.z_and_label_dim,
+                                                    in_channels=self.ff.n_channels,
+                                                    start_channels=self.cfg.getint('model', 'n_chns'),
+                                                    fac=1,
+                                                    sn=self.cfg.getint('model', 'sn_gen'),
+                                                    device=device)
+            else:
+                raise Exception('big model not implemented for resolution of 16')
+        else:
+            print("Using regular model")
+            if cfg.getint('grid', 'resolution') == 8:
+                self.critic = model.AtomCrit(in_channels=self.ff.n_channels+1,
+                                                  start_channels=self.cfg.getint('model', 'n_chns'),
+                                                  fac=1, sn=self.cfg.getint('model', 'sn_crit'),
+                                                  device=device)
+                self.generator = model.AtomGen(z_dim=self.z_and_label_dim,
+                                                    in_channels=self.ff.n_channels,
+                                                    start_channels=self.cfg.getint('model', 'n_chns'),
+                                                    fac=1,
+                                                    sn=self.cfg.getint('model', 'sn_gen'),
+                                                    device=device)
+            else:
+                self.critic = model.AtomCrit16(in_channels=self.ff.n_channels+1,
+                                                  start_channels=self.cfg.getint('model', 'n_chns'),
+                                                  fac=1, sn=self.cfg.getint('model', 'sn_crit'),
+                                                  device=device)
+                self.generator = model.AtomGen16(z_dim=self.z_and_label_dim,
+                                                    in_channels=self.ff.n_channels,
+                                                    start_channels=self.cfg.getint('model', 'n_chns'),
+                                                    fac=1,
+                                                    sn=self.cfg.getint('model', 'sn_gen'),
+                                                    device=device)
 
         self.use_gp = cfg.getboolean('model', 'gp')
 
@@ -690,18 +731,17 @@ class GAN_SEQ():
         rot_mtxs_transposed = torch.from_numpy(rot_mtx_batch(self.bs, transpose=True)).to(self.device).float()
 
         data_generators = []
-        data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
-        data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
+        data_generators.append(iter(Recurrent_Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
+        data_generators.append(iter(Recurrent_Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
 
         for m in range(self.n_gibbs):
-            data_generators.append(iter(Generator(self.data, hydrogens=False, gibbs=True, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
-            data_generators.append(iter(Generator(self.data, hydrogens=True, gibbs=True, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
+            data_generators.append(iter(Recurrent_Generator(self.data, hydrogens=False, gibbs=True, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
+            data_generators.append(iter(Recurrent_Generator(self.data, hydrogens=True, gibbs=True, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
 
         try:
             self.generator.eval()
             self.critic.eval()
 
-            g = 0
             for data_gen in data_generators:
                 start = timer()
 
@@ -742,8 +782,7 @@ class GAN_SEQ():
                             #a.ref_pos = d['loc_env'].rot_back(c)
 
                 print(timer()-start)
-                stats.evaluate(train=False, subdir=str(self.epoch)+"_"+str(g), save_samples=True)
-                g += 1
+            stats.evaluate(train=False, subdir=str(self.epoch), save_samples=True)
             #reset atom positions
             for sample in self.data.samples_val:
                 #sample.write_gro_file(samples_dir / (sample.name + str(self.step) + ".gro"))
