@@ -81,7 +81,9 @@ In the folllowing, we will train DBM on liquid-phase structures of cumene and oc
 While CG force fields might lead to the sharing of an atom between two neighboring
 beads, the reconstruction of the atom is assigned to only one of the two beads. The mapping is defined between `[map][/map]`. Additionally, we can define a preference axis for each bead to reduce the rotational degrees of freedom. This preference axis can be defined by the position of the central bead and the difference vector to any other bead, which is specified between `[align][/align]`. Furthermore, we can use data augmentation and can increase the number of occurances of a given bead in the training set by integer multiples defined inside `[mult][/mult]`.
 
-- Then we have to define the feature mapping and place it as a `.txt` file inside the directory `./forcefield`. The file is oraganized as follows:
+- Then we have to define the feature mapping and the energy terms used during training and place it as a `.txt` file inside the directory `./forcefield`. Similar to the three feature channels found for RGB images, we store a number of feature channels in each voxel that represent the presence of other atoms or beads of a certain kind. In our current implementation we made the feature mapping rather flexible such that it can be defined individually by the user. Atom types can be distinguished not only by element but additionally by chemical similarity, i.e., atoms of a given type can be treated as identical in the MD simulation. Furthermore, the user can add channels to distinguish the functional form of interaction to the current atom of interest. Interaction types can include bond, bending angle, torsion, and Lennard-Jones. Similarly, separate channels can be used to encode the different coarse-grained bead types.
+
+The file is oraganized as follows:
 	- the name of the feature mapping and the number of exclusions is defined between `[general][/general]`.
 ```
 [general]
@@ -89,7 +91,7 @@ beads, the reconstruction of the atom is assigned to only one of the two beads. 
 ff2           2
 [/general]
 ```
- - aasd
+	- the name of the atom types, their masses, charge und Lennard-Jones parameters are defined inside `[atom_types][/atom_types]`. Atoms of a given type in a local environment of a bead can be displayed in their own channel specified in the *channel* column. Setting the channel number to *-1* deactivates this feature in the local environment representation.
 ```
 [atom_types]
 ;name	channel   mass      charge       sigma      epsilon
@@ -98,7 +100,9 @@ C_AR	-1       12.0110    -0.1150          0.3550      0.2940
 H	-1        1.0080     0.0000          0.2318      0.3180
 H_AR	-1        1.0080     0.1150          0.2420      0.1260
 [/atom_types]
-
+```
+	- bonds, angles and dihedrals can be defined for atom types declared previously. Again, an additional culumn *channels* defines to which channel a given feature is mapped to. Such a feature means, that for a given atom of interest, we would insert all other atoms interacting via the specfic interaction term into the specified channel. Example: Given an angle type `C-C_AR-C_AR` mapped to channel 9. If we want to generate the `C` while the other atoms (the two `C_AR`) being already placed, then both `C_AR` atoms will be drawn into channel nr.9. The idea is, that we split up the local environment into small, incomplete fragments (such as two atoms of an angle) and let the generator place the atom such that it completes the fragment. Note that it is possible to map different features to the *same* channel. In this example, we map a bond feature of C-H and C_AR-H_AR to the same channel (channel nr. 1), as their equilibrium angle and force constant are very similar. 
+```
 [bond_types]
 ; i     j	channel  func        b0          kb
 C      C	0        1       0.153000      1000.00
@@ -143,7 +147,8 @@ H_AR    H_AR    16
 H_AR    H       16
 H       H       16
 [/lj_types]
-
+```
+```
 [bead_types]
 ;name	channel
 B	17
