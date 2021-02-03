@@ -10,6 +10,6 @@ DeepBackmap is a deep neural network based approach for backmapping of condened-
 
 To create a conda environment with all the required python packages you can use the env.yml file:
 
-'''
+```
 conda env create -f env.yml
-'''
+```
