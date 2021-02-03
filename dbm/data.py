@@ -39,8 +39,8 @@ class Data():
 
         #samples
         self.data_dir = Path("./data/")
-        self.dirs_train = [Path("./data/") / d.replace(" ", "") for d in cfg.get('data', 'train_data').split(",")]
-        self.dirs_val = [Path("./data/") / d.replace(" ", "") for d in cfg.get('data', 'val_data').split(",")]
+        self.dirs_train = [Path("./data/reference_snapshots/") / d.replace(" ", "") for d in cfg.get('data', 'train_data').split(",")]
+        self.dirs_val = [Path("./data/reference_snapshots/") / d.replace(" ", "") for d in cfg.get('data', 'val_data').split(",")]
         self.dir_processed = Path("./data/processed")
         self.dir_processed.mkdir(exist_ok=True)
 

@@ -120,7 +120,7 @@ class GAN():
         self.bs = self.cfg.getint('training', 'batchsize')
 
         #Data pipeline
-        self.data = Data(cfg, save=True)
+        self.data = Data(cfg, save=False)
         ds_train = DS(self.data, cfg)
         if len(ds_train) != 0:
             self.loader_train = DataLoader(
