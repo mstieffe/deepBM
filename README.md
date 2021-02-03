@@ -160,6 +160,54 @@ The file is oraganized as follows:
 	S	18
 	[/bead_types]
 	```
+- Once all of this is done, we can write a `config.ini` file to specify the model parameters:
+	```
+	[model]
+	name = my_model_name # name of the model
+	output_dir = my_output_dir # dir for saving
+	model_type = big # network architecture(choose between 'tiny', 'regular' and 'big')
+	n_chns = 64 # number of channels in the first conv. layer
+	noise_dim = 64 # dimension of noise vector
+	sn_gen = 0 # number of iterations for the spectral norm in the generator
+	sn_crit = 1 # number of iterations for the spectral norm in the critic
+	gp = True # use gradient penalty 
 
+	[forcefield]
+	ff_file = ff2.txt # the file specifying the feature mapping/energy terms
+
+	[universe]
+	aug = True # use data augmentation 
+	align = True # use preference axis to reduce rotation degrees of freedom
+	order = dfs # order of reconstruction (choose between dfs, bfs and random), dfs is recommendet
+	cutoff = 0.7 # cutoff for the local environment representation in nm
+	kick = 0.05 # max random displacement for non-bonded atoms from their CG bead center
+
+	[data]
+	train_data = cumene_t350_6, octane_t350_10 # list of snapshot folders used for training
+	val_data = sPS_t568_1, cumene_t350_1, octane_t350_1 # list of snapshot folders used for validation
+
+	[training]
+	recurrent = False # use recurrent training or not
+	n_epoch = 200 # number of epochs
+	rand_rot = True # use random rotations
+	batchsize = 64
+	n_critic = 4 # number of training steps for the critic
+	n_checkpoints = 2 # max number of checkpoints
+	n_save = 5 # number of epochs between checkpoints
+
+	[prior]
+	mode = min # prior/regularizer mode. choose between 'min', 'match' or 'none'
+	ratio_bonded_nonbonded = 0.1 # ratio between non-bonded and bonded energy terms in the prior
+	weights = 0.0, 0.001, 0.01 # prior weights
+	schedule = 10, 20 # schedule for the prior weights (in this example the weight of 0.001 is used after epoch 10)
+
+	[grid]
+	resolution = 8 # grid resolution
+	length = 1.2 # length spanned by the grid in nm
+	sigma = 0.02 # sigma of the gaussian blobs in nm
+
+	[validate]
+	n_gibbs = 2 # number of gibbs iterations during backmapping
+	```
 
 
