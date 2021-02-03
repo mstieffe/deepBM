@@ -163,7 +163,7 @@ The file is oraganized as follows:
 - Once all of this is done, we can write a `config.ini` file to specify the model parameters:
 	```
 	[model]
-	name = my_model_name # name of the model
+	name = my_model_name # *name of the model*
 	output_dir = my_output_dir # dir for saving
 	model_type = big # network architecture(choose between 'tiny', 'regular' and 'big')
 	n_chns = 64 # number of channels in the first conv. layer
