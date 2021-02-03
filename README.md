@@ -165,9 +165,9 @@ The file is oraganized as follows:
 	[model]
 	name = my_model_name # name of the model
 	output_dir = my_output_dir # dir for saving
-	model_type = big # network architecture(choose between 'tiny', 'regular' and 'big')
-	n_chns = 64 # number of channels in the first conv. layer
-	noise_dim = 64 # dimension of noise vector
+	model_type = regular # network architecture(choose between 'tiny', 'regular' and 'big')
+	n_chns = 128 # number of channels in the first conv. layer
+	noise_dim = 128 # dimension of noise vector
 	sn_gen = 0 # number of iterations for the spectral norm in the generator
 	sn_crit = 1 # number of iterations for the spectral norm in the critic
 	gp = True # use gradient penalty 
@@ -187,7 +187,7 @@ The file is oraganized as follows:
 	val_data = sPS_t568_1, cumene_t350_1, octane_t350_1 # list of snapshot folders used for validation
 
 	[training]
-	recurrent = False # use recurrent training or not
+	recurrent = True # use recurrent training or not
 	n_epoch = 200 # number of epochs
 	rand_rot = True # use random rotations
 	batchsize = 64
