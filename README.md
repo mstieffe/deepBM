@@ -81,13 +81,16 @@ In the folllowing, we will train DBM on liquid-phase structures of cumene and oc
 While CG force fields might lead to the sharing of an atom between two neighboring
 beads, the reconstruction of the atom is assigned to only one of the two beads. The mapping is defined between `[map][/map]`. Additionally, we can define a preference axis for each bead to reduce the rotational degrees of freedom. This preference axis can be defined by the position of the central bead and the difference vector to any other bead, which is specified between `[align][/align]`. Furthermore, we can use data augmentation and can increase the number of occurances of a given bead in the training set by integer multiples defined inside `[mult][/mult]`.
 
-- Then we have to define the feature mapping and place it as a `.txt` file inside the directory `./forcefield`. As an example we could use:
+- Then we have to define the feature mapping and place it as a `.txt` file inside the directory `./forcefield`. The file is oraganized as follows:
+ - the name of the feature mapping and the number of exclusions is defined between `[general][/general]`.
 ```
 [general]
 ; Name      nrexcl
 ff2           2
 [/general]
-
+```
+ - aasd
+```
 [atom_types]
 ;name	channel   mass      charge       sigma      epsilon
 C	-1       12.0110     0.0000          0.3207      0.3519
