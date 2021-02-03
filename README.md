@@ -90,7 +90,6 @@ The file is oraganized as follows:
 ff2           2
 [/general]
 ```
-
 	- the name of the atom types, their masses, charge und Lennard-Jones parameters are defined inside `[atom_types][/atom_types]`. Atoms of a given type in a local environment of a bead can be displayed in their own channel specified in the *channel* column. Setting the channel number to *-1* deactivates this feature in the local environment representation.
 
 ```
@@ -101,7 +100,7 @@ C_AR	-1       12.0110    -0.1150          0.3550      0.2940
 H	-1        1.0080     0.0000          0.2318      0.3180
 H_AR	-1        1.0080     0.1150          0.2420      0.1260
 [/atom_types]
-
+```
 
 	- bonds, angles and dihedrals can be defined for atom types declared previously. Again, an additional culumn *channels* defines to which channel a given feature is mapped to. Such a feature means, that for a given atom of interest, we would insert all other atoms interacting via the specfic interaction term into the specified channel. Example: Given an angle type `C-C_AR-C_AR` mapped to channel 9. If we want to generate the `C` while the other atoms (the two `C_AR`) being already placed, then both `C_AR` atoms will be drawn into channel nr.9. The idea is, that we split up the local environment into small, incomplete fragments (such as two atoms of an angle) and let the generator place the atom such that it completes the fragment. Note that it is possible to map different features to the *same* channel. In this example, we map a bond feature of C-H and C_AR-H_AR to the same channel (channel nr. 1), as their equilibrium angle and force constant are very similar. 
 
