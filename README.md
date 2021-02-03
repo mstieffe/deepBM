@@ -76,6 +76,7 @@ In the folllowing, we will train DBM on liquid-phase structures of cumene and oc
 3	1
 [/mult]
 ```
-While the mapping is defined between `[map][/map]`, we can additionaly define a preference axis for each bead to reduce the rotational degrees of freedom. This preference axis can be defined by the position of the central bead and the difference vector to any other bead, which is specified between `[align][/align]`. Furthermore, we can use data augmentation and can increase the number of occurances of a given bead in the training set by integer multiples defined inside `[mult][/mult]`.
+While CG force fields might lead to the sharing of an atom between two neighboring
+beads, the reconstruction of the atom is assigned to only one of the two beads. The mapping is defined between `[map][/map]`. Additionally, we can define a preference axis for each bead to reduce the rotational degrees of freedom. This preference axis can be defined by the position of the central bead and the difference vector to any other bead, which is specified between `[align][/align]`. Furthermore, we can use data augmentation and can increase the number of occurances of a given bead in the training set by integer multiples defined inside `[mult][/mult]`.
 
 
