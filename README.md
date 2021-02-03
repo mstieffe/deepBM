@@ -210,4 +210,13 @@ The file is oraganized as follows:
 	n_gibbs = 2 # number of gibbs iterations during backmapping
 	```
 
+- Finally, we can train the model
+	```
+	python train.py config.ini
+	```
+- Once training is done, we can use the model for the validation data (specified in the `config.ini`)
+	```
+	python val.py config.ini
+	```
+
 
