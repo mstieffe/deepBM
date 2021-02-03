@@ -38,48 +38,48 @@ In the folllowing, we will train DBM on liquid-phase structures of cumene and oc
 - We place the toplogy files for all residues used into the corresponding directories. For example, the residue for cumene is named `G065` and we will have one file `G065.itp` inside `./data/aa_top/` as well as `./data/cg_top/`, to define the topologies for the AA as well as the CG structure.
 
 - Next, the mapping file is generated. As an example, the mapping for looks like this:
-```
-[map]
-;atom_index atom_type bead_index bead_type 
-    1  H_AR 2   A
-    2  C_AR 2   A
-    3  C_AR 2   A
-    4  H_AR 2   A
-    5  C_AR 2   A
-    6  H_AR 2   A
-    7  C_AR 2   A
-    8  C_AR 2   A
-    9  H_AR 2   A
-   10  C_AR 2   A
-   11  H_AR 2   A
-   12    C  1   B
-   13    H  1   B
-   14    C  1   B
-   15    H  1   B
-   16    H  1   B
-   17    H  1   B
-   18    C  3   B
-   19    H  3   B
-   20    H  3   B
-   21    H  3   B
-[/map]
+	```
+	[map]
+	;atom_index atom_type bead_index bead_type 
+	    1  H_AR 2   A
+	    2  C_AR 2   A
+	    3  C_AR 2   A
+	    4  H_AR 2   A
+	    5  C_AR 2   A
+	    6  H_AR 2   A
+	    7  C_AR 2   A
+	    8  C_AR 2   A
+	    9  H_AR 2   A
+	   10  C_AR 2   A
+	   11  H_AR 2   A
+	   12    C  1   B
+	   13    H  1   B
+	   14    C  1   B
+	   15    H  1   B
+	   16    H  1   B
+	   17    H  1   B
+	   18    C  3   B
+	   19    H  3   B
+	   20    H  3   B
+	   21    H  3   B
+	[/map]
 
-[align]
-;bead_index	fixpoint
-1       3
-2       1
-3	1
-[/align]
+	[align]
+	;bead_index	fixpoint
+	1       3
+	2       1
+	3	1
+	[/align]
 
-[mult]
-;bead_index	multiples
-1       1
-2       1
-3	1
-[/mult]
-```
-While CG force fields might lead to the sharing of an atom between two neighboring
-beads, the reconstruction of the atom is assigned to only one of the two beads. The mapping is defined between `[map][/map]`. Additionally, we can define a preference axis for each bead to reduce the rotational degrees of freedom. This preference axis can be defined by the position of the central bead and the difference vector to any other bead, which is specified between `[align][/align]`. Furthermore, we can use data augmentation and can increase the number of occurances of a given bead in the training set by integer multiples defined inside `[mult][/mult]`.
+	[mult]
+	;bead_index	multiples
+	1       1
+	2       1
+	3	1
+	[/mult]
+	```
+	While CG force fields might lead to the sharing of an atom between two neighboring
+	beads, the reconstruction of the atom is assigned to only one of the two beads. The mapping is defined between `[map][/map]`. Additionally, we can define a preference axis for each bead to reduce the rotational degrees of freedom. This preference axis can be defined by the position of the central bead and the difference vector to any other bead, which is specified between `[align][/align]`. Furthermore, we can use data augmentation and can increase the number of occurances of a given bead in the training set by integer multiples defined inside `[mult][/mult]`.
 
 - Then we have to define the feature mapping and the energy terms used during training and place it as a `.txt` file inside the directory `./forcefield`. Similar to the three feature channels found for RGB images, we store a number of feature channels in each voxel that represent the presence of other atoms or beads of a certain kind. In our current implementation we made the feature mapping rather flexible such that it can be defined individually by the user. Atom types can be distinguished not only by element but additionally by chemical similarity, i.e., atoms of a given type can be treated as identical in the MD simulation. Furthermore, the user can add channels to distinguish the functional form of interaction to the current atom of interest. Interaction types can include bond, bending angle, torsion, and Lennard-Jones. Similarly, separate channels can be used to encode the different coarse-grained bead types.
 The file is oraganized as follows:
