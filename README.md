@@ -31,3 +31,50 @@ The user needs to provide the following data:
 
 In the folllowing, we will train DBM on liquid-phase structures of cumene and octane and then use it for the backmapping of syndiotactic polystyrene (sPS).
 
+#### data preparation
+
+- Snapshots for cumene, octane and sPS be found `./data/reference_snapshots/`. The coarse-grained model of sPS was developed by Fritz *et al*[1]. It represents a polymer as a linear chain, where each monomer is mapped onto two CG beads of different types, denoted A for the chain backbone and B for the phenyl ring. The center of bead A is the center of mass of the CH2 group and the two neighboring CH groups, which are weighted with half of their masses. Bead B is centered at the center of mass of the phenyl group. Cumene is mapped onto three CG beads: Two beads of type A for the backbone, each containing a methyl group and sharing the CH group connected to the phenyl ring, and one bead of type B for the phenyl ring. Octane is mapped onto four beads of type A, where neighboring A beads share a CH2 group.
+
+- Next, the mapping file is generated. As an example, the mapping for looks like this:
+```
+[map]
+    1  H_AR 2   A
+    2  C_AR 2   A
+    3  C_AR 2   A
+    4  H_AR 2   A
+    5  C_AR 2   A
+    6  H_AR 2   A
+    7  C_AR 2   A
+    8  C_AR 2   A
+    9  H_AR 2   A
+   10  C_AR 2   A
+   11  H_AR 2   A
+   12    C  1   B
+   13    H  1   B
+   14    C  1   B
+   15    H  1   B
+   16    H  1   B
+   17    H  1   B
+   18    C  3   B
+   19    H  3   B
+   20    H  3   B
+   21    H  3   B
+[/map]
+
+[align]
+;bead	fixpoint
+1       3
+2       1
+3	1
+[/align]
+
+[mult]
+;bead	multiples
+1       1
+2       1
+3	1
+[/mult]
+```
+
+
+
