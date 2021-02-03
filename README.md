@@ -102,59 +102,64 @@ The file is oraganized as follows:
 	[/atom_types]
 	```
 
-	- bonds, angles and dihedrals can be defined for atom types declared previously. Again, an additional culumn *channels* defines to which channel a given feature is mapped to. Such a feature means, that for a given atom of interest, we would insert all other atoms interacting via the specfic interaction term into the specified channel. Example: Given an angle type `C-C_AR-C_AR` mapped to channel 9. If we want to generate the `C` while the other atoms (the two `C_AR`) being already placed, then both `C_AR` atoms will be drawn into channel nr.9. The idea is, that we split up the local environment into small, incomplete fragments (such as two atoms of an angle) and let the generator place the atom such that it completes the fragment. Note that it is possible to map different features to the *same* channel. In this example, we map a bond feature of C-H and C_AR-H_AR to the same channel (channel nr. 1), as their equilibrium angle and force constant are very similar. 
+	- bonds, angles and dihedrals can be defined for atom types declared previously. Again, an additional culumn *channels* defines to which channel a given feature is mapped to. Such a feature means, that for a given atom of interest, we would insert all other atoms interacting via the specfic interaction term into the specified channel. Example: Given an angle type `C-C_AR-C_AR` mapped to channel 9. If we want to generate the `C` while the other atoms (the two `C_AR`) being already placed, then both `C_AR` atoms will be drawn into channel nr.9. The idea is, that we split up the local environment into small, incomplete fragments (such as two atoms of an angle) and let the generator place the atom such that it completes the fragment. Note that it is possible to map different features to the *same* channel. In this example, we map a bond feature of `C-H` and `C_AR-H_AR` to the same channel (channel nr. 1), as their equilibrium angle and force constant are very similar. Again, setting the channel number to *-1* deactivates this feature in the local environment representation.
 
-[bond_types]
-; i     j	channel  func        b0          kb
-C      C	0        1       0.153000      1000.00
-C      H	1        1       0.110000      1000.00
-C_AR   C_AR	2     	 1       0.139000      1000.00
-C_AR   H_AR	1     	 1       0.108000      1000.00
-C      C_AR	3    	 1       0.151000      1000.00
-[/bond_types]
+	```
+	[bond_types]
+	; i     j	channel  func        b0          kb
+	C      C	0        1       0.153000      1000.00
+	C      H	1        1       0.110000      1000.00
+	C_AR   C_AR	2     	 1       0.139000      1000.00
+	C_AR   H_AR	1     	 1       0.108000      1000.00
+	C      C_AR	3    	 1       0.151000      1000.00
+	[/bond_types]
 
-[angle_types]
-; i     j      k	channel  func       th0         cth
-H      C      H		4       1       109.45       306.40
-C      C      H 	5       1       109.45       448.90
-C      C      C   	6     	1       111.00       530.30
-C_AR   C      H  	7       1       109.45       366.90
-C      C      C_AR 	8   	1       109.45       482.30
-C      C_AR   C_AR  	9   	1       120.00       376.60
-C_AR   C_AR   C_AR  	10  	1       120.00       376.60
-C_AR   C_AR   H_AR  	11  	1       120.00       418.80
-[/angle_types]
+	[angle_types]
+	; i     j      k	channel  func       th0         cth
+	H      C      H		4       1       109.45       306.40
+	C      C      H 	5       1       109.45       448.90
+	C      C      C   	6     	1       111.00       530.30
+	C_AR   C      H  	7       1       109.45       366.90
+	C      C      C_AR 	8   	1       109.45       482.30
+	C      C_AR   C_AR  	9   	1       120.00       376.60
+	C_AR   C_AR   C_AR  	10  	1       120.00       376.60
+	C_AR   C_AR   H_AR  	11  	1       120.00       418.80
+	[/angle_types]
 
 
-[dihedral_types]
-; i    j     k     l	channel func 
-C      C     C     C	12      1    0.0000   6.0000   3.0000
-H      C     C     C	12      1    0.0000   6.0000   3.0000
-C_AR   C_AR  C_AR  C_AR	13      2    0.0000 167.4000
-C_AR   C_AR  C_AR  C	13      2    0.0000 167.4000
-C_AR   C_AR  C_AR  H_AR	13      2    0.0000 167.4000
-[/dihedral_types]
-
-[lj_types]
-; i     j       channel
-C       C_AR    14
-C       H_AR    15
-C       C       14
-C       H       15
-C_AR    H_AR    15
-C_AR    C_AR    14
-C_AR    H       15
-H_AR    H_AR    16
-H_AR    H       16
-H       H       16
-[/lj_types]
-```
-```
-[bead_types]
-;name	channel
-B	17
-S	18
-[/bead_types]
+	[dihedral_types]
+	; i    j     k     l	channel func 
+	C      C     C     C	12      1    0.0000   6.0000   3.0000
+	H      C     C     C	12      1    0.0000   6.0000   3.0000
+	C_AR   C_AR  C_AR  C_AR	13      2    0.0000 167.4000
+	C_AR   C_AR  C_AR  C	13      2    0.0000 167.4000
+	C_AR   C_AR  C_AR  H_AR	13      2    0.0000 167.4000
+	[/dihedral_types]
+	```
+	- For non-bonded atoms in the environment we can also introduce feature channels specified by the involved atom types.
+	```
+	[lj_types]
+	; i     j       channel
+	C       C_AR    14
+	C       H_AR    15
+	C       C       14
+	C       H       15
+	C_AR    H_AR    15
+	C_AR    C_AR    14
+	C_AR    H       15
+	H_AR    H_AR    16
+	H_AR    H       16
+	H       H       16
+	[/lj_types]
+	```
+	- Finally, we introduce feature channels for the CG beads in the environment.
+	```
+	[bead_types]
+	;name	channel
+	B	17
+	S	18
+	[/bead_types]
+	```
 
 
 
