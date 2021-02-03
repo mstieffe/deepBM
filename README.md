@@ -38,6 +38,7 @@ In the folllowing, we will train DBM on liquid-phase structures of cumene and oc
 - Next, the mapping file is generated. As an example, the mapping for looks like this:
 ```
 [map]
+;atom_index atom_type bead_index bead_type 
     1  H_AR 2   A
     2  C_AR 2   A
     3  C_AR 2   A
@@ -62,19 +63,19 @@ In the folllowing, we will train DBM on liquid-phase structures of cumene and oc
 [/map]
 
 [align]
-;bead	fixpoint
+;bead_index	fixpoint
 1       3
 2       1
 3	1
 [/align]
 
 [mult]
-;bead	multiples
+;bead_index	multiples
 1       1
 2       1
 3	1
 [/mult]
 ```
-
+While the mapping is defined between `[map][/map]`, we can additionaly define a preference axis for each bead to reduce the rotational degrees of freedom. This preference axis can be defined by the position of the central bead and the difference vector to any other bead, which is specified between `[align][/align]`. Furthermore, we can use data augmentation and can increase the number of occurances of a given bead in the training set by integer multiples defined inside `[mult][/mult]`.
 
 
