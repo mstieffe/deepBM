@@ -57,7 +57,7 @@ class Stats():
                 dih_fig.add_plot(bm_dstr, plot_dict, ref_dstr)
             dih_fig.save()
             #LJ
-            lj_fig = Fig(p/"lj.pdf", len(self.data.ff.dih_types))
+            lj_fig = Fig(p/"lj.pdf", 2)
             bm_lj = self.lj_per_mol_dstr(samples)
             ref_lj = self.lj_per_mol_dstr(samples, ref=True)
             plot_dict = {"title": "LJ", "xlabel": "E [kJ/mol]", "ylabel": "p"}
