@@ -182,6 +182,7 @@ class FF():
                 chn_dict[o.channel] = chn_dict[o.channel] + "\n" + str(o.name)
             else:
                 chn_dict[o.channel] = str(o.name)
+        chn_dict[self.n_channels -1] = "current bead"
         return chn_dict
 
     def make_ljs(self, atom, non_bonded_atoms):

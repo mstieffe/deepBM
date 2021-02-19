@@ -1,0 +1,36 @@
+[general]
+; Name      nrexcl
+ff3           2
+[/general]
+
+[atom_types]
+;name	channel   mass      charge       sigma      epsilon
+B	-1       1.00       0.0000        0.3207      0.3519
+[/atom_types]
+
+[bond_types]
+; i     j	channel  func        b0          kb
+B      B	0        1       0.153000      1000.00
+[/bond_types]
+
+[angle_types]
+; i     j      k	channel  func       th0         cth
+B      B      B		3       1       109.45       306.40
+[/angle_types]
+
+
+[dihedral_types]
+; i    j     k     l	channel func 
+B      B     B     B	6      1    0.0000   6.0000   3.0000
+[/dihedral_types]
+
+[lj_types]
+; i     j       channel
+B       B    8
+[/lj_types]
+
+[bead_types]
+;name	channel
+D	11
+[/bead_types]
+

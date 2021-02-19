@@ -58,6 +58,7 @@ class Universe():
             cg_top_file = path_dict['data_dir'] / "cg_top" / (res.name + ".itp")
             map_file = path_dict['data_dir'] / "mapping" / (res.name + ".map")
             #env_file = path_dict['dir'] / (res.name + ".env")
+
             beads = []
             for bead in res.atoms:
                 beads.append(Bead(self.mols[-1],

@@ -1,0 +1,147 @@
+[general]
+; Name      nrexcl
+aPS           4
+[/general]
+
+[atom_types]
+;name	channel   mass      charge       sigma      epsilon
+A1m     -1     27.0460     0.0000      1.0000      0.0000
+A2m     -1     27.0460     0.0000      1.0000      0.0000
+A1r     -1     27.0460     0.0000      1.0000      0.0000
+A2r     -1     27.0460     0.0000      1.0000      0.0000
+B1u     -1     77.1060     0.0000      1.0000      0.0000
+B2u     -1     77.1060     0.0000      1.0000      0.0000
+B1d     -1     77.1060     0.0000      1.0000      0.0000
+B2d     -1     77.1060     0.0000      1.0000      0.0000
+[/atom_types]
+
+[bond_types]
+; i     j	channel  func        b0          kb
+A1m      B1u        0        0        1.0       1.00
+A1m      B1d        0        0        1.0       1.00
+A2m      B1u        0        0        1.0       1.00
+A2m      B1d        0        0        1.0       1.00
+A2m      B2u        0        0        1.0       1.00
+A2m      B2d        0        0        1.0       1.00
+A1m      B2u        0        0        1.0       1.00
+A1m      B2d        0        0        1.0       1.00
+A1r      B1u        1        1        1.0       1.00
+A1r      B1d        1        1        1.0       1.00
+A2r      B1u        1        1        1.0       1.00
+A2r      B1d        1        1        1.0       1.00
+A2r      B2u        1        1        1.0       1.00
+A2r      B2d        1        1        1.0       1.00
+A1r      B2u        1        1        1.0       1.00
+A1r      B2d        1        1        1.0       1.00
+[/bond_types]
+
+[angle_types]
+; i     j      k	channel  func       th0         cth
+A1m      B1u      A2m        2     1       1.0        1.00
+A1m      B1u      A2r        6     1       1.0        1.00
+A1m      B1d      A2m        2     1       1.0        1.00
+A1m      B1d      A2r        6     1       1.0        1.00
+A1m      B2u      A2m        2     1       1.0        1.00
+A1m      B2u      A2r        6     1       1.0        1.00
+A1m      B2d      A2m        2     1       1.0        1.00
+A1m      B2d      A2r        6     1       1.0        1.00
+A1r      B1u      A2r        3     1       1.0        1.00
+A1r      B1u      A2m        6     1       1.0        1.00
+A1r      B1d      A2r        3     1       1.0        1.00
+A1r      B1d      A2m        6     1       1.0        1.00
+A1r      B2u      A2r        3     1       1.0        1.00
+A1r      B2u      A2m        6     1       1.0        1.00
+A1r      B2d      A2r        3     1       1.0        1.00
+A1r      B2d      A2m        6     1       1.0        1.00
+B1u      A1m      B2u        4     1       1.0        1.00
+B1u      A2m      B2u        4     1       1.0        1.00
+B1d      A1m      B2d        4     1       1.0        1.00
+B1d      A2m      B2d        4     1       1.0        1.00
+B1u      A1r      B2d        5     1       1.0        1.00
+B1u      A2r      B2d        5     1       1.0        1.00
+B1d      A1r      B2u        5     1       1.0        1.00
+B1d      A2r      B2u        5     1       1.0        1.00
+[/angle_types]
+
+
+[dihedral_types]
+; i    j     k     l	channel func 
+A1m      B1u      A2m      B2u        10         1	 0	0
+A2m      B2u      A1m      B1u        10         1	 0	0
+A1m      B2d      A2m      B1d        10         1	 0	0
+A2m      B1d      A1m      B2d        10         1	 0	0
+A1r      B1u      A2m      B2u        10         1	 0	0
+A2r      B2u      A1m      B1u        10         1	 0	0
+A1r      B2d      A2m      B1d        10         1	 0	0
+A2r      B1d      A1m      B2d        10         1	 0	0
+A1m      B1d      A2m      B2d        8         1	 0	0
+A2m      B2d      A1m      B1d        8         1	 0	0
+A1m      B2u      A2m      B1u        8         1	 0	0
+A2m      B1u      A1m      B2u        8         1	 0	0
+A1r      B1d      A2m      B2d        8         1	 0	0
+A2r      B2d      A1m      B1d        8         1	 0	0
+A1r      B2u      A2m      B1u        8         1	 0	0
+A2r      B1u      A1m      B2u        8         1	 0	0
+A1r      B1u      A2r      B2d        7         1	 0	0
+A1r      B2d      A2r      B1u        7         1	 0	0
+A2r      B2u      A1r      B1d        7         1	 0	0
+A2r      B1d      A1r      B2u        7         1	 0	0
+A1m      B1u      A2r      B2d        7         1	 0	0
+A1m      B2d      A2r      B1u        7         1	 0	0
+A2m      B2u      A1r      B1d        7         1	 0	0
+A2m      B1d      A1r      B2u        7         1	 0	0
+A1r      B1d      A2r      B2u        9         1	 0	0
+A1r      B2u      A2r      B1d        9         1	 0	0
+A2r      B2d      A1r      B1u        9         1	 0	0
+A2r      B1u      A1r      B2d        9         1	 0	0
+A1m      B1d      A2r      B2u        9         1	 0	0
+A1m      B2u      A2r      B1d        9         1	 0	0
+A2m      B2d      A1r      B1u        9         1	 0	0
+A2m      B1u      A1r      B2d        9         1	 0	0
+[/dihedral_types]
+
+[lj_types]
+; i     j       channel
+A1m      B1u        11
+A1m      B1d        11
+A2m      B1u        11
+A2m      B1d        11
+A2m      B2u        11
+A2m      B2d        11
+A1m      B2u        11
+A1m      B2d        11
+A1r      B1u        11
+A1r      B1d        11
+A2r      B1u        11
+A2r      B1d        11
+A2r      B2u        11
+A2r      B2d        11
+A1r      B2u        11
+A1r      B2d        11
+A1m      A1m        12
+A1m      A2m        12
+A1m      A1r        12
+A1m      A2r        12
+A2m      A2m        12
+A2m      A1r        12
+A2m      A2r        12
+A1r      A1r        12
+A1r      A2r        12
+A2r      A2r        12
+B1u      B1u        13
+B1u      B2u        13
+B1u      B1d        13
+B1u      B2d        13
+B2u      B2u        13
+B2u      B1d        13
+B2u      B2d        13
+B1d      B1d        13
+B1d      B2d        13
+B2d      B2d        13
+[/lj_types]
+
+[bead_types]
+;name	channel
+M	14
+[/bead_types]
+

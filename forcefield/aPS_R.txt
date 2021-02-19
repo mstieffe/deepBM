@@ -1,0 +1,36 @@
+[general]
+; Name      nrexcl
+aPS_RW          2
+[/general]
+
+[atom_types]
+;name	channel   mass      charge       sigma      epsilon
+M     -1     27.0460     0.0000      1.0000      0.0000
+[/atom_types]
+
+[bond_types]
+; i     j	channel  func        b0          kb
+M      M        0        0        1.0       1.00
+[/bond_types]
+
+[angle_types]
+; i     j      k	channel  func       th0         cth
+M      M      M        1     1       1.0        1.00
+[/angle_types]
+
+
+[dihedral_types]
+; i    j     k     l	channel func 
+M      M      M      M        2         1	 0	0
+[/dihedral_types]
+
+[lj_types]
+; i     j       channel
+M      M        3
+[/lj_types]
+
+[bead_types]
+;name	channel
+F	4
+[/bead_types]
+

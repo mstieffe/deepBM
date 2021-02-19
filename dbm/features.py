@@ -81,22 +81,22 @@ class AA_Feature():
     def featvec(self, key='all'):
         atom_featvec = np.zeros((len(self.loc_env.atoms), self.top.ff.n_channels))
         for index in range(0, len(self.loc_env.atoms)):
-            if self.loc_env.atoms[index].type.channel > 0:
+            if self.loc_env.atoms[index].type.channel >= 0:
                 atom_featvec[index, self.loc_env.atoms[index].type.channel] = 1
         for bond in self.top.bonds[key]:
-            if bond.type.channel > 0:
+            if bond.type.channel >= 0:
                 indices = self.loc_env.get_indices(bond.atoms)
                 atom_featvec[indices, bond.type.channel] = 1
         for angle in self.top.angles[key]:
-            if angle.type.channel > 0:
+            if angle.type.channel >= 0:
                 indices = self.loc_env.get_indices(angle.atoms)
                 atom_featvec[indices, angle.type.channel] = 1
         for dih in self.top.dihs[key]:
-            if dih.type.channel > 0:
+            if dih.type.channel >= 0:
                 indices = self.loc_env.get_indices(dih.atoms)
                 atom_featvec[indices, dih.type.channel] = 1
         for lj in self.top.ljs[key]:
-            if lj.type.channel > 0:
+            if lj.type.channel >= 0:
                 indices = self.loc_env.get_indices(lj.atoms)
                 atom_featvec[indices, lj.type.channel] = 1
         atom_featvec[self.loc_env.index_dict[self.top.atom], :] = 0
