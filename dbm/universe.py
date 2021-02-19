@@ -315,12 +315,7 @@ class Universe():
     def write_gro_file(self, filename, ref=False):
         elem_dict = {
             "H_AR": "H",
-            "H": "H",
             "C_AR": "C",
-            "C": "C",
-            "B": "B",
-            "D": "D",
-            "S": "S"
         }
         with open(filename, 'w') as f:
             f.write('{:s}\n'.format('Ala5'))
@@ -331,10 +326,14 @@ class Universe():
                     pos = a.ref_pos
                 else:
                     pos = a.pos
+                if a.type.name in elem_dict:
+                    type_name = elem_dict[a.type.name]
+                else:
+                    type_name = a.type.name
                 f.write('{:5d}{:5s}{:>5s}{:5d}{:8.3f}{:8.3f}{:8.3f}{:8.3f}{:8.3f}{:8.3f}\n'.format(
                     a.mol.index,
                     "sPS",
-                    elem_dict[a.type.name]+str(a.mol.atoms.index(a)+1),
+                    type_name+str(a.mol.atoms.index(a)+1),
                     a.index,
                     pos[0] + a.center[0],
                     pos[1] + a.center[1],
