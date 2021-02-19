@@ -41,9 +41,13 @@ class DS_seq(Dataset):
 
         generators = []
         generators.append(Recurrent_Generator(data, hydrogens=False, gibbs=False, train=train, rand_rot=False))
-        generators.append(Recurrent_Generator(data, hydrogens=True, gibbs=False, train=train, rand_rot=False))
+        #generators.append(Recurrent_Generator(data, hydrogens=True, gibbs=False, train=train, rand_rot=False))
         generators.append(Recurrent_Generator(data, hydrogens=False, gibbs=True, train=train, rand_rot=False))
-        generators.append(Recurrent_Generator(data, hydrogens=True, gibbs=True, train=train, rand_rot=False))
+        #generators.append(Recurrent_Generator(data, hydrogens=True, gibbs=True, train=train, rand_rot=False))
+
+        if cfg.getboolean('training', 'hydrogens'):
+            generators.append(Recurrent_Generator(data, hydrogens=True, gibbs=False, train=train, rand_rot=False))
+            generators.append(Recurrent_Generator(data, hydrogens=True, gibbs=True, train=train, rand_rot=False))
 
         self.elems = []
         for g in generators:
@@ -732,11 +736,13 @@ class GAN_seq():
 
         data_generators = []
         data_generators.append(iter(Recurrent_Generator(self.data, hydrogens=False, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
-        data_generators.append(iter(Recurrent_Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
+        if self.cfg.getboolean('training', 'hydrogens'):
+            data_generators.append(iter(Recurrent_Generator(self.data, hydrogens=True, gibbs=False, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
 
         for m in range(self.n_gibbs):
             data_generators.append(iter(Recurrent_Generator(self.data, hydrogens=False, gibbs=True, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
-            data_generators.append(iter(Recurrent_Generator(self.data, hydrogens=True, gibbs=True, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
+            if self.cfg.getboolean('training', 'hydrogens'):
+                data_generators.append(iter(Recurrent_Generator(self.data, hydrogens=True, gibbs=True, train=False, rand_rot=False, pad_seq=False, ref_pos=False)))
 
         try:
             self.generator.eval()
