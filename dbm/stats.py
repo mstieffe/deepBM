@@ -99,7 +99,7 @@ class Stats():
 
         return dstr
 
-    def bond_dstr(self, bond_name, samples, n_bins=80, low=0.0, high=0.2, ref=False):
+    def bond_dstr(self, bond_name, samples, n_bins=80, ref=False):
         #computes the dstr of bond lengths for a given bond type over all samples stored in data
 
         dis = []
@@ -120,11 +120,11 @@ class Stats():
                 dis += list(sample.box.diff_vec_batch(np.array(pos1) - np.array(pos2)))
         dis = np.sqrt(np.sum(np.square(dis), axis=-1))
 
-        dstr = self.make_histo(dis, n_bins=n_bins, low=low, high=high)
+        dstr = self.make_histo(dis, n_bins=n_bins, low=min(dis)*0.8, high=max(dis)*1.2)
 
         return dstr
 
-    def angle_dstr(self, angle_name, samples, n_bins=80, low=70.0, high=150., ref=False):
+    def angle_dstr(self, angle_name, samples, n_bins=80, ref=False):
         #computes the dstr of angles for a given angle type over all samples stored in data
 
         vec1, vec2 = [], []
@@ -163,7 +163,7 @@ class Stats():
         angles = np.arccos(angles)
         angles = angles*180./math.pi
 
-        dstr = self.make_histo(angles, n_bins=n_bins, low=low, high=high)
+        dstr = self.make_histo(angles, n_bins=n_bins, low=min(angles)-20, high=max(angles)+20)
 
         return dstr
 
@@ -210,7 +210,7 @@ class Stats():
         angles = np.arccos(angles)
         angles = angles*180./math.pi
 
-        dstr = self.make_histo(angles, n_bins=n_bins, low=low, high=high)
+        dstr = self.make_histo(angles, n_bins=n_bins, low=min(angles)-20, high=max(angles)+20)
 
         return dstr
 
@@ -224,17 +224,19 @@ class Stats():
                 ljs = list(set(itertools.chain.from_iterable(ljs)))
                 energy = sample.energy.lj_pot(ljs, ref=ref)
                 energies.append(energy)
+        energies = np.array(energies)
 
-        dstr = self.make_histo(np.array(energies), n_bins=n_bins, low=low, high=high)
+        dstr = self.make_histo(energies, n_bins=n_bins, low=low, high=high)
 
         return dstr
 
 
-    def rdf(self, samples, n_bins=40, max_dist=1.2, species=None, ref=False, excl=3):
+    def rdf(self, samples, n_bins=40, species=None, ref=False, excl=3):
         #computes the rdf over all samples stored in data
 
         rdf = {}
         n_samples = len(samples)
+        max_dist = 2*self.data.cfg.getfloat('universe', 'cutoff')
         dr = float(max_dist / n_bins)
 
         for sample in samples:
