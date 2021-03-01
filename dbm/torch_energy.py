@@ -175,6 +175,8 @@ class Energy_torch():
         param = self.lj_params[param_ndx]
         sigma = param[:, :, 0]
         epsilon = param[:, :, 1]
+        exp_n = param[:, :, 2]
+        exp_m = param[:, :, 3]
 
         pos1 = torch.stack([a[n] for n, a in zip(ndx1, atoms)]) # (BS, n_ljs, 3)
         pos2 = torch.stack([a[n] for n, a in zip(ndx2, atoms)])
@@ -182,10 +184,14 @@ class Energy_torch():
 
         dis = torch.where(dis > self.lj_min_dist, dis, self.lj_min_dist)
 
-        c6 = torch.pow(sigma / dis, 6)
-        c12 = torch.pow(c6, 2)
+        c_n = torch.pow(sigma / dis, exp_n)
+        c_m = torch.pow(sigma / dis, exp_m)
 
-        en = 4 * epsilon * (c12 - c6)
+        #c6 = torch.pow(sigma / dis, 6)
+        #c12 = torch.pow(c6, 2)
+
+        #en = 4 * epsilon * (c12 - c6)
+        en = 4 * epsilon * (c_n - c_m)
 
         #cutoff
         #c6_cut = sigma

@@ -1,0 +1,61 @@
+[general]
+; Name      nrexcl
+sPS           4
+[/general]
+
+[atom_types]
+;name	channel   mass      charge       sigma      epsilon
+A1r     -1     27.0460     0.0000      0.4100      0.0000
+A2r     -1     27.0460     0.0000      0.4100      0.0000
+B1u     -1     77.1060     0.0000      0.5200      0.0000
+B2d     -1     77.1060     0.0000      0.5200      0.0000
+[/atom_types]
+
+[bond_types]
+; i     j	channel  func        b0          kb
+A1r      B1u        0        1        0.361     14282.00
+A2r      B1u        0        1        0.361     14282.00
+A2r      B2d        0        1        0.361     14282.00
+A1r      B2d        0        1        0.361     14282.00
+B1u      B1u        1        1        0.585     4647.00
+B2d      B1u        1        1        0.585     4647.00
+A2r      A2r        2        1        0.438     1749.00
+A1r      A2r        2        1        0.438     1749.00
+[/bond_types]
+
+[angle_types]
+; i     j      k	channel  func       th0         cth
+A1r      B1u      A2r        3     1       38.5       0.80
+A1r      B2d      A2r        4     1       38.5       0.80
+B1u      A1r      B2d        5     1       121.1      0.03
+B1u      A2r      B2d        6     1       121.1      0.03
+[/angle_types]
+
+
+[dihedral_types]
+; i    j     k     l	channel func 
+A1r      B1u      A2r      B2d        7         0	 0	0
+A1r      B2d      A2r      B1u        8         0	 0	0
+A2r      B2d      A1r      B1u        9         0	 0	0
+A2r      B1u      A1r      B2d        10         0	 0	0
+[/dihedral_types]
+
+[lj_types]
+; i     j       channel		exp_n	exp_m
+A1r      B1u        11		7.0	5.0
+A2r      B1u        11		7.0	5.0
+A2r      B2d        11		7.0	5.0
+A1r      B2d        11		7.0	5.0
+A1r      A1r        12		7.0	6.0
+A1r      A2r        12		7.0	6.0
+A2r      A2r        12		7.0	6.0
+B1u      B2d        13		7.0	4.0
+B1u      B1u        13		7.0	4.0
+B2d      B2d        13		7.0	4.0
+[/lj_types]
+
+[bead_types]
+;name	channel
+F	14
+[/bead_types]
+

@@ -234,7 +234,9 @@ class Mol():
                     if n in predecessor_atoms_heavy:
                         psble_start_nodes.append(a)
             if psble_start_nodes:
-                start_atom = np.random.choice(psble_start_nodes)
+                #start_atom = np.random.choice(psble_start_nodes)
+                #weird bonds in cg sPS... therefore just take first one...
+                start_atom = psble_start_nodes[0]
             else:
                 start_atom = heavy_atoms[np.array(n_heavy_neighbors).argmin()]
             #else:

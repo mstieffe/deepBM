@@ -4,7 +4,11 @@ from dbm.util import read_between
 
 class Bead_Type():
 
+    index = 0
+
     def __init__(self, name, channel):
+        self.index = Bead_Type.index
+        Bead_Type.index += 1
         self.name = name
         self.channel = int(channel)
 
@@ -52,11 +56,13 @@ class Dih_Type():
 
 class LJ_Type():
 
-    def __init__(self, atom_type1, atom_type2, channel):
+    def __init__(self, atom_type1, atom_type2, channel, exp_n=12, exp_m=6):
         self.name = (atom_type1.name, atom_type2.name)
         self.sigma = 0.5 * (atom_type1.sigma + atom_type2.sigma)
         self.epsilon = math.sqrt(atom_type1.epsilon * atom_type2.epsilon)
         self.channel = int(channel)
+        self.exp_n = float(exp_n)
+        self.exp_m = float(exp_m)
 
 class Bond():
 
@@ -101,6 +107,8 @@ class FF():
             name, channel = line.split()
             self.n_channels = max(self.n_channels, int(channel) +1)
             self.bead_types[name] = Bead_Type(name, channel)
+        Bead_Type.index = 0
+        self.n_bead_chns = len(self.bead_types)
 
         #load center bead types
         #self.center_bead_types = {}
@@ -123,9 +131,13 @@ class FF():
         #generate LJ types
         self.lj_types = {}
         for line in read_between("[lj_types]", "[/lj_types]", self.file):
-            name1, name2, channel = line.split()
+            if len(line.split()) == 5:
+                name1, name2, channel, exp_n, exp_m = line.split()
+            else:
+                name1, name2, channel = line.split()
+                exp_n, exp_m = 12, 6
             self.n_channels = max(self.n_channels, int(channel) +1)
-            self.lj_types[(name1, name2)] = LJ_Type(self.atom_types[name1], self.atom_types[name2], channel)
+            self.lj_types[(name1, name2)] = LJ_Type(self.atom_types[name1], self.atom_types[name2], channel, exp_n, exp_m)
         self.lj_index_dict = dict(zip(self.lj_types.values(), range(0,len(self.lj_types))))
 
 
@@ -241,8 +253,8 @@ class FF():
     def lj_params(self):
         params = []
         for lj_type in self.lj_types.values():
-            params.append([lj_type.sigma, lj_type.epsilon])
-        params.append([0.0, 0.0]) #dummie for padding..
+            params.append([lj_type.sigma, lj_type.epsilon, lj_type.exp_n, lj_type.exp_m])
+        params.append([0.0, 0.0, 12, 6]) #dummie for padding..
         return np.array(params)
 
 

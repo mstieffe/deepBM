@@ -11,6 +11,9 @@ class Local_Env():
         #self.atoms = bead.atoms
         self.mol = bead.mol
         self.beads = beads
+        self.beads_intra = [b for b in self.beads if b in self.mol.beads]
+        self.beads_inter = list(set(self.beads)-set(self.beads_intra))
+
         atoms = []
         for b in self.beads:
             atoms += b.atoms
@@ -27,13 +30,20 @@ class Local_Env():
             fp = self.box.diff_vec(self.bead.fp.center - self.bead.center)
             self.rot_mat = self.rot_mat(fp)
 
-        self.index_dict = dict(zip(self.atoms, range(0, len(self.atoms))))
+        self.atoms_index_dict = dict(zip(self.atoms, range(0, len(self.atoms))))
+        self.beads_index_dict = dict(zip(self.beads, range(0, len(self.beads))))
 
 
     def get_indices(self, atoms):
         indices = []
         for a in atoms:
-            indices.append(self.index_dict[a])
+            indices.append(self.atoms_index_dict[a])
+        return indices
+
+    def get_cg_indices(self, beads):
+        indices = []
+        for b in beads:
+            indices.append(self.beads_index_dict[b])
         return indices
 
     def rot(self, pos):
@@ -89,6 +99,22 @@ class Local_Env():
                          [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
 
         return rot_mat
+
+    def chn_aa_featvec(self, atoms):
+        atom_featvec = np.concatenate((np.zeros((len(self.atoms), 1)), np.ones((len(self.atoms), 1))), axis=1)
+        indices = self.get_indices(atoms)
+        for i in indices:
+            atom_featvec[i, 0] = 1
+            atom_featvec[i, 1] = 0
+        return atom_featvec
+
+    def chn_cg_featvec(self, beads):
+        bead_featvec = np.concatenate((np.zeros((len(self.beads), 1)), np.ones((len(self.beads), 1))), axis=1)
+        indices = self.get_cg_indices(beads)
+        for i in indices:
+            bead_featvec[i, 0] = 1
+            bead_featvec[i, 1] = 0
+        return bead_featvec
 
 class Top():
 

@@ -226,7 +226,7 @@ class Stats():
                 energies.append(energy)
         energies = np.array(energies)
 
-        dstr = self.make_histo(energies, n_bins=n_bins, low=low, high=high)
+        dstr = self.make_histo(energies, n_bins=n_bins, low=min(energies)-50, high=max(energies)+50)
 
         return dstr
 
@@ -365,3 +365,58 @@ class Stats():
             #print(d['aa_pos'].shape)
             #print(t_pos.shape)
             d['aa_pos'] = np.where(repl[:, np.newaxis], d['aa_pos'], t_pos)
+
+
+    def plot_aa_seq(self):
+        sample = np.random.choice(self.data.samples_train+self.data.samples_val)
+        bead = np.random.choice(sample.beads)
+        fig = plt.figure(figsize=(20, 20))
+        colors = ["black", "blue", "red", "orange", "green"]
+        color_dict = {}
+        ax = fig.add_subplot(1,1,1, projection='3d')
+        ax.set_title("AA Seq "+bead.type.name, fontsize=40)
+        count = 0
+        for atom in sample.aa_seq_heavy[bead]:
+            if atom.type not in color_dict:
+                color_dict[atom.type] = colors[0]
+                colors.remove(colors[0])
+            ax.scatter(atom.ref_pos[0], atom.ref_pos[1], atom.ref_pos[2], s=500, marker='o', color=color_dict[atom.type], alpha=0.3)
+            ax.text(atom.ref_pos[0], atom.ref_pos[1], atom.ref_pos[2], str(count), fontsize=10)
+            count += 1
+        #for pos in self.features[self.atom_seq_dict[bead][0]].atom_positions_ref():
+        #    ax.scatter(pos[0], pos[1], pos[2], s=200, marker='o', color="yellow", alpha=0.1)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_zticks([])
+        ax.set_xlim3d(-0.5, 0.5)
+        ax.set_ylim3d(-0.5, 0.5)
+        ax.set_zlim3d(-0.5, 0.5)
+        plt.show()
+
+    def plot_cg_seq(self):
+        sample = np.random.choice(self.data.samples_train+self.data.samples_val)
+        mol = np.random.choice(sample.mols)
+        bead_seq = list(zip(*mol.cg_seq(order=sample.order, train=False)))[0]
+        fig = plt.figure(figsize=(20, 20))
+        colors = ["black", "blue", "red", "orange", "green"]
+        color_dict = {}
+        ax = fig.add_subplot(1,1,1, projection='3d')
+        ax.set_title("CG Seq "+mol.name, fontsize=40)
+        count = 0
+        center = mol.beads[int(len(mol.beads)/2)].center
+        for bead in bead_seq:
+            print(bead.index, len(bead.atoms))
+            if bead.type not in color_dict:
+                color_dict[bead.type] = colors[0]
+                colors.remove(colors[0])
+            pos = sample.box.diff_vec(bead.center - center)
+            ax.scatter(pos[0], pos[1], pos[2], s=100, marker='o', color=color_dict[bead.type], alpha=0.3)
+            ax.text(pos[0], pos[1], pos[2], str(count)+ " id:"+str(bead.index), fontsize=6)
+            count += 1
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_zticks([])
+        ax.set_xlim3d(-2.0, 2.0)
+        ax.set_ylim3d(-2.0, 2.0)
+        ax.set_zlim3d(-2.0, 2.0)
+        plt.show()
