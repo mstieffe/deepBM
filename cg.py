@@ -31,7 +31,6 @@ def main():
             raise Exception('CG file already exists!')
         else:
             aa = md.load(str(aa_path))
-
             for res in aa.topology.residues:
                 mols.append(Mol(res.name))
                 map_file = Path("./data/mapping/")/ (res.name + ".map")
@@ -54,8 +53,8 @@ def main():
                     res_beads[bead_ndx].add_atom(atoms[-1])
 
         Atom.index = 0
-        Bead.index = 0
-        Mol.index = 0
+        Bead.index = 1
+        Mol.index = 1
 
         for bead in beads:
             aa_pos = [a.ref_pos for a in bead.atoms]
@@ -71,7 +70,6 @@ def main():
             #print(":::::::::::::::::::::::::::")
             com = box.move_inside(com / sum(aa_mass))
             bead.center = com
-            print(com)
 
 
 

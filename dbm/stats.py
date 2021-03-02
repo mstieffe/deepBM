@@ -120,7 +120,7 @@ class Stats():
                 dis += list(sample.box.diff_vec_batch(np.array(pos1) - np.array(pos2)))
         dis = np.sqrt(np.sum(np.square(dis), axis=-1))
 
-        dstr = self.make_histo(dis, n_bins=n_bins, low=min(dis)*0.8, high=max(dis)*1.2)
+        dstr = self.make_histo(dis, n_bins=n_bins, low=np.min(dis)*0.8, high=np.max(dis)*1.2)
 
         return dstr
 
@@ -163,7 +163,7 @@ class Stats():
         angles = np.arccos(angles)
         angles = angles*180./math.pi
 
-        dstr = self.make_histo(angles, n_bins=n_bins, low=min(angles)-20, high=max(angles)+20)
+        dstr = self.make_histo(angles, n_bins=n_bins, low=np.min(angles)-20, high=np.max(angles)+20)
 
         return dstr
 
@@ -210,7 +210,7 @@ class Stats():
         angles = np.arccos(angles)
         angles = angles*180./math.pi
 
-        dstr = self.make_histo(angles, n_bins=n_bins, low=min(angles)-20, high=max(angles)+20)
+        dstr = self.make_histo(angles, n_bins=n_bins, low=np.min(angles)-20, high=np.max(angles)+20)
 
         return dstr
 
@@ -226,7 +226,7 @@ class Stats():
                 energies.append(energy)
         energies = np.array(energies)
 
-        dstr = self.make_histo(energies, n_bins=n_bins, low=min(energies)-50, high=max(energies)+50)
+        dstr = self.make_histo(energies, n_bins=n_bins, low=np.min(energies)-50, high=np.max(energies)+50)
 
         return dstr
 

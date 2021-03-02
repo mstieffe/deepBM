@@ -445,7 +445,7 @@ class Energy():
     def lj_pot(self, ljs=None, ref=False, shift=False, cutoff=1.0):
         if not ljs:
             ljs = self.ljs
-        pos1, pos2, sigma, epsilon = [], [], [], []
+        pos1, pos2, sigma, epsilon, exp_n, exp_m = [], [], [], [], [], []
         for lj in ljs:
             if ref:
                 pos1.append(lj.atoms[0].ref_pos + lj.atoms[0].center)
@@ -455,20 +455,26 @@ class Energy():
                 pos2.append(lj.atoms[1].pos + lj.atoms[1].center)
             sigma.append(lj.type.sigma)
             epsilon.append(lj.type.epsilon)
+            exp_n.append(lj.type.exp_n)
+            exp_m.append(lj.type.exp_m)
         dis = self.box.diff_vec_batch(np.array(pos1) - np.array(pos2))
         dis = np.sqrt(np.sum(np.square(dis), axis=-1))
-
-        c6_term = np.divide(sigma, dis)
-        c6_term = np.power(c6_term, 6)
-        c12_term = np.power(c6_term, 2)
-        en = np.subtract(c12_term, c6_term)
+        s = np.divide(sigma, dis)
+        n_term = np.power(s, exp_n)
+        m_term = np.power(s, exp_m)
+        #c6_term = np.power(c6_term, 6)
+        #c12_term = np.power(c6_term, 2)
+        en = np.subtract(n_term, m_term)
         en = np.multiply(en, 4 * np.array(epsilon))
 
         if shift:
-            c6_term_cut = np.divide(sigma, cutoff)
-            c6_term_cut = np.power(c6_term_cut, 6)
-            c12_term_cut = np.power(c6_term_cut, 2)
-            en_cut = np.subtract(c12_term_cut, c6_term_cut)
+            #c6_term_cut = np.divide(sigma, cutoff)
+            #c6_term_cut = np.power(c6_term_cut, 6)
+            #c12_term_cut = np.power(c6_term_cut, 2)
+            s_cut = np.divide(sigma, cutoff)
+            n_term_cut = np.power(s_cut, exp_n)
+            m_term_cut = np.power(s_cut, exp_m)
+            en_cut = np.subtract(n_term_cut, m_term_cut)
             en_cut = np.multiply(en_cut, 4 * np.array(epsilon))
 
             en = np.where(dis > cutoff, 0.0, en - en_cut)
